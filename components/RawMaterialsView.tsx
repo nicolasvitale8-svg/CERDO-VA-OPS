@@ -5,15 +5,17 @@ import { PURCHASE_CATEGORIES } from '../constants';
 import { calculateMaterialCost, formatCurrency } from '../services/calcService';
 import { canEditCosts } from '../services/authService';
 import { exportToExcel } from '../services/exportService';
-import { Plus, Search, Edit2, CheckCircle, Download } from 'lucide-react';
+import { Plus, Search, Edit2, CheckCircle, Download, Trash2 } from 'lucide-react';
+import { NumberInput } from './NumberInput';
 
 interface Props {
   materials: RawMaterial[];
   onSave: (m: RawMaterial) => void;
+  onDelete: (id: string) => void;
   currentUser: User;
 }
 
-export const RawMaterialsView: React.FC<Props> = ({ materials, onSave, currentUser }) => {
+export const RawMaterialsView: React.FC<Props> = ({ materials, onSave, onDelete, currentUser }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [isEditing, setIsEditing] = useState(false);
@@ -63,7 +65,7 @@ export const RawMaterialsView: React.FC<Props> = ({ materials, onSave, currentUs
         materials: filteredMaterials,
         recipes: [],
         products: [],
-        settings: { costo_hora_operario: 0 }, // Not needed for materials export
+        settings: { costo_hora_operario: 0 }, 
         datasets: ['MATERIALS'],
         filename: `materias_primas_${new Date().toISOString().slice(0,10)}.xlsx`
     });
@@ -136,7 +138,7 @@ export const RawMaterialsView: React.FC<Props> = ({ materials, onSave, currentUs
                 <th className="px-6 py-4">Unidad Compra</th>
                 <th className="px-6 py-4 text-right">Precio Compra</th>
                 <th className="px-6 py-4 text-right text-brand-secondary">Costo Real</th>
-                {canEdit && <th className="px-6 py-4 text-center">Edit</th>}
+                {canEdit && <th className="px-6 py-4 text-center">Acciones</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-border-soft/50 text-sm">
@@ -164,12 +166,26 @@ export const RawMaterialsView: React.FC<Props> = ({ materials, onSave, currentUs
                     </td>
                     {canEdit && (
                         <td className="px-6 py-3 text-center">
-                        <button
-                            onClick={() => handleEdit(m)}
-                            className="text-text-muted hover:text-brand-primary transition-colors p-2"
-                        >
-                            <Edit2 size={16} />
-                        </button>
+                            <div className="flex justify-center gap-2">
+                                <button
+                                    onClick={() => handleEdit(m)}
+                                    className="text-text-muted hover:text-brand-primary transition-colors p-2 rounded hover:bg-bg-base"
+                                    title="Editar"
+                                >
+                                    <Edit2 size={16} />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onDelete(m.id);
+                                    }}
+                                    className="text-text-muted hover:text-status-error transition-colors p-2 rounded hover:bg-bg-base"
+                                    title="Eliminar"
+                                >
+                                    <Trash2 size={16} />
+                                </button>
+                            </div>
                         </td>
                     )}
                   </tr>
@@ -231,24 +247,20 @@ export const RawMaterialsView: React.FC<Props> = ({ materials, onSave, currentUs
                 
                 <div>
                   <label className="block text-xs font-mono text-text-secondary mb-1 uppercase">Cant. p/ Unidad</label>
-                  <input
-                    type="number" step="0.01"
-                    required
-                    className="w-full bg-bg-base border border-border-intense rounded px-3 py-2 text-white outline-none font-mono"
+                  <NumberInput
                     value={editingItem.cantidad_por_unidad_compra}
-                    onChange={e => setEditingItem({ ...editingItem, cantidad_por_unidad_compra: parseFloat(e.target.value) })}
+                    onChange={val => setEditingItem({ ...editingItem, cantidad_por_unidad_compra: val })}
+                    className="w-full bg-bg-base border border-border-intense rounded px-3 py-2 text-white outline-none font-mono"
                   />
                 </div>
 
                 <div>
                    <label className="block text-xs font-mono text-text-secondary mb-1 uppercase">Merma (Factor)</label>
                    <div className="relative">
-                    <input
-                      type="number" step="0.01"
-                      required
-                      className="w-full bg-bg-base border border-border-intense rounded px-3 py-2 text-white outline-none font-mono"
+                    <NumberInput
                       value={editingItem.merma_factor}
-                      onChange={e => setEditingItem({ ...editingItem, merma_factor: parseFloat(e.target.value) })}
+                      onChange={val => setEditingItem({ ...editingItem, merma_factor: val })}
+                      className="w-full bg-bg-base border border-border-intense rounded px-3 py-2 text-white outline-none font-mono"
                     />
                     <div className="absolute right-2 top-2 text-[10px] text-text-muted font-mono pointer-events-none">1.0 = 0%</div>
                    </div>
@@ -256,16 +268,14 @@ export const RawMaterialsView: React.FC<Props> = ({ materials, onSave, currentUs
 
                 <div className="col-span-2 border-t border-border-intense pt-4 mt-2">
                    <label className="block text-xs font-mono text-brand-secondary mb-1 uppercase">Precio Compra ($)</label>
-                   <input
-                      type="number" step="0.01"
-                      required
-                      className="w-full bg-bg-base border border-brand-secondary/30 rounded px-4 py-3 text-lg font-mono font-bold text-white outline-none focus:border-brand-secondary"
+                   <NumberInput
                       value={editingItem.precio_unidad_compra}
-                      onChange={e => setEditingItem({ 
+                      onChange={val => setEditingItem({ 
                         ...editingItem, 
-                        precio_unidad_compra: parseFloat(e.target.value),
+                        precio_unidad_compra: val,
                         fecha_ultimo_precio: new Date().toISOString().split('T')[0]
                       })}
+                      className="w-full bg-bg-base border border-brand-secondary/30 rounded px-4 py-3 text-lg font-mono font-bold text-white outline-none focus:border-brand-secondary"
                     />
                 </div>
               </div>

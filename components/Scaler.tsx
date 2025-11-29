@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { RawMaterial, Recipe, GlobalSettings } from '../types';
 import { calculateRecipeStats, calculateMaterialCost, formatCurrency, formatDecimal } from '../services/calcService';
 import { Printer, ArrowLeft } from 'lucide-react';
+import { NumberInput } from './NumberInput';
 
 interface Props {
   recipes: Recipe[];
@@ -32,12 +33,6 @@ export const Scaler: React.FC<Props> = ({ recipes, materials, settings, preSelec
       targetKg = targetValue;
       scalingFactor = baseStats.rinde_kg > 0 ? targetKg / baseStats.rinde_kg : 0;
     } else {
-      // Note: Recipe no longer has unit weight, so this mode might be deprecated or need a product selector
-      // For now, if user enters units, we assume they mean "batches" if unit weight is 0, or we disable this mode?
-      // Since the requirement says "Pastones base no definen gramaje", scaling by units is tricky without selecting a product.
-      // Reverting logic to simple Kg scaling or assuming 1 unit = 1 kg if undefined, OR forcing KG mode.
-      // Better approach: If unit weight is 0, treat as KG.
-      // Legacy support: check peso_unitario_kg
       const unitWeight = selectedRecipe.peso_unitario_kg || 1; 
       targetKg = targetValue * unitWeight;
       scalingFactor = baseStats.rinde_kg > 0 ? targetKg / baseStats.rinde_kg : 0;
@@ -145,11 +140,10 @@ export const Scaler: React.FC<Props> = ({ recipes, materials, settings, preSelec
                     ¿Cuántos Kilos?
                 </label>
                 <div className="relative group">
-                    <input 
-                        type="number" step="1" min="0"
+                    <NumberInput
                         className="w-full px-4 py-3 bg-bg-base border border-brand-secondary focus:ring-1 focus:ring-brand-secondary rounded outline-none text-3xl font-mono font-bold text-white transition-colors"
                         value={targetValue}
-                        onChange={e => setTargetValue(parseFloat(e.target.value) || 0)}
+                        onChange={val => setTargetValue(val)}
                     />
                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-text-muted font-mono text-sm">
                         KG

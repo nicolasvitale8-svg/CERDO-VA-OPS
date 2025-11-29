@@ -156,7 +156,7 @@ export const RecipesView: React.FC<Props> = ({ recipes, materials, settings, cur
             className="border border-dashed border-border-intense rounded bg-bg-elevated/50 flex flex-col items-center justify-center text-text-muted hover:border-brand-primary/50 hover:text-brand-primary hover:bg-bg-highlight transition h-full min-h-[200px]"
             >
             <ChefHat size={32} className="mb-3 opacity-70" />
-            <span className="font-mono text-sm tracking-widest">>> CREAR RECETA BASE</span>
+            <span className="font-mono text-sm tracking-widest">&gt;&gt; CREAR RECETA BASE</span>
             </button>
         )}
       </div>

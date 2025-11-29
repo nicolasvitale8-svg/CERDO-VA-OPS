@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { GlobalSettings, Recipe, FinalProduct, RawMaterial } from '../types';
 import { calculateRecipeStats, calculateProductStats, formatCurrency } from '../services/calcService';
 import { Save, Users, Clock, AlertCircle } from 'lucide-react';
+import { NumberInput } from './NumberInput';
 
 interface Props {
   settings: GlobalSettings;
@@ -58,11 +59,10 @@ export const LaborView: React.FC<Props> = ({ settings, recipes, products, materi
         <div className="flex items-end gap-6">
             <div className="flex-1">
                 <label className="block text-xs font-mono text-text-secondary uppercase mb-2">Costo Hora Operario ($/h)</label>
-                <input 
-                    type="number" 
+                <NumberInput
                     className="w-full bg-bg-base border border-border-intense rounded px-4 py-3 text-2xl font-mono font-bold text-white outline-none focus:border-brand-primary"
                     value={costPerHour}
-                    onChange={(e) => setCostPerHour(parseFloat(e.target.value) || 0)}
+                    onChange={val => setCostPerHour(val)}
                 />
             </div>
             <button 

@@ -1,10 +1,11 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { RawMaterial, Recipe, Ingredient, GlobalSettings, User } from '../types';
 import { calculateRecipeStats, calculateMaterialCost, formatCurrency, formatDecimal } from '../services/calcService';
 import { canEditCosts } from '../services/authService';
-import { ArrowLeft, Plus, Trash2, Save, Calculator, Clock, Users, FileText } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Save, Calculator, Clock, Users, FileText, Search, X } from 'lucide-react';
 import { PRODUCT_CATEGORIES } from '../constants';
+import { NumberInput } from './NumberInput';
 
 interface Props {
   recipe: Recipe;
@@ -20,30 +21,77 @@ interface Props {
 
 export const RecipeDetail: React.FC<Props> = ({ recipe: initialRecipe, materials, settings, currentUser, onSave, onDelete, onBack, onGoToScaler, onViewTechSheet }) => {
   const [recipe, setRecipe] = useState<Recipe>(JSON.parse(JSON.stringify(initialRecipe)));
-  const [addingIngredient, setAddingIngredient] = useState<string>('');
   
+  // States for the new predictive search & quick add workflow
+  const [ingredientSearch, setIngredientSearch] = useState('');
+  const [selectedMaterialId, setSelectedMaterialId] = useState('');
+  const [newIngredientQty, setNewIngredientQty] = useState(0);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+
   const canEdit = canEditCosts(currentUser.rol);
   const stats = calculateRecipeStats(recipe, materials, settings);
 
-  const availableMaterials = useMemo(() => {
+  // Close search dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
+        setIsSearchOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Filter materials for predictive search
+  const filteredMaterials = useMemo(() => {
+    if (!ingredientSearch) return [];
+    const lowerTerm = ingredientSearch.toLowerCase();
+    // Exclude already added materials to avoid duplicates
     const usedIds = new Set(recipe.ingredientes.map(i => i.materia_prima_id));
-    return materials.sort((a,b) => a.nombre_item.localeCompare(b.nombre_item));
-  }, [materials]);
+    
+    return materials
+        .filter(m => !usedIds.has(m.id) && m.nombre_item.toLowerCase().includes(lowerTerm))
+        .sort((a,b) => a.nombre_item.localeCompare(b.nombre_item))
+        .slice(0, 10); // Limit to top 10 results for performance
+  }, [materials, ingredientSearch, recipe.ingredientes]);
+
+  const handleSelectMaterial = (m: RawMaterial) => {
+      setSelectedMaterialId(m.id);
+      setIngredientSearch(m.nombre_item);
+      setIsSearchOpen(false);
+  };
+
+  const clearSelection = () => {
+      setSelectedMaterialId('');
+      setIngredientSearch('');
+      setNewIngredientQty(0);
+      setIsSearchOpen(false);
+  };
 
   const handleAddIngredient = () => {
-    if (!canEdit || !addingIngredient) return;
+    if (!canEdit || !selectedMaterialId || newIngredientQty <= 0) return;
+    
     const newIng: Ingredient = {
       id: crypto.randomUUID(),
       receta_id: recipe.id,
-      materia_prima_id: addingIngredient,
-      cantidad_en_um_costos: 0,
+      materia_prima_id: selectedMaterialId,
+      cantidad_en_um_costos: newIngredientQty,
       orden_visual: recipe.ingredientes.length + 1
     };
-    setRecipe(prev => ({
-      ...prev,
-      ingredientes: [...prev.ingredientes, newIng]
-    }));
-    setAddingIngredient('');
+
+    const updatedRecipe = {
+      ...recipe,
+      ingredientes: [...recipe.ingredientes, newIng]
+    };
+
+    setRecipe(updatedRecipe);
+    
+    // AUTO-SAVE TRIGGER
+    onSave(updatedRecipe);
+
+    // Reset inputs
+    clearSelection();
   };
 
   const updateIngredientQty = (id: string, qty: number) => {
@@ -56,10 +104,13 @@ export const RecipeDetail: React.FC<Props> = ({ recipe: initialRecipe, materials
 
   const removeIngredient = (id: string) => {
     if (!canEdit) return;
-    setRecipe(prev => ({
-      ...prev,
-      ingredientes: prev.ingredientes.filter(i => i.id !== id)
-    }));
+    const updatedRecipe = {
+        ...recipe,
+        ingredientes: recipe.ingredientes.filter(i => i.id !== id)
+    };
+    setRecipe(updatedRecipe);
+    // Auto-save on delete too for consistency
+    onSave(updatedRecipe);
   };
 
   const handleSave = () => {
@@ -175,22 +226,20 @@ export const RecipeDetail: React.FC<Props> = ({ recipe: initialRecipe, materials
                 <div className="grid grid-cols-2 gap-4">
                     <div>
                         <label className="block text-[10px] font-mono text-text-secondary uppercase mb-1">Min. Totales Lote</label>
-                        <input 
-                            type="number" 
+                        <NumberInput
                             disabled={!canEdit}
                             className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono disabled:opacity-50"
                             value={recipe.minutos_totales_paston_lote || 0}
-                            onChange={e => setRecipe({...recipe, minutos_totales_paston_lote: parseFloat(e.target.value)})}
+                            onChange={val => setRecipe({...recipe, minutos_totales_paston_lote: val})}
                         />
                     </div>
                     <div>
                         <label className="block text-[10px] font-mono text-text-secondary uppercase mb-1">Cant. Operarios</label>
-                         <input 
-                            type="number" 
+                         <NumberInput
                             disabled={!canEdit}
                             className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono disabled:opacity-50"
                             value={recipe.operarios_equivalentes_paston || 1}
-                            onChange={e => setRecipe({...recipe, operarios_equivalentes_paston: parseFloat(e.target.value)})}
+                            onChange={val => setRecipe({...recipe, operarios_equivalentes_paston: val})}
                         />
                     </div>
                 </div>
@@ -203,7 +252,7 @@ export const RecipeDetail: React.FC<Props> = ({ recipe: initialRecipe, materials
 
         {/* RIGHT COLUMN: Ingredients Table */}
         <div className="lg:col-span-8">
-             <div className="bg-bg-elevated border border-border-soft rounded shadow-lg overflow-hidden">
+             <div className="bg-bg-elevated border border-border-soft rounded shadow-lg overflow-hidden min-h-[600px] flex flex-col">
                 <div className="p-4 bg-bg-highlight border-b border-border-intense flex justify-between items-center">
                      <h3 className="font-bold text-white flex items-center gap-2 font-header uppercase tracking-wide text-sm">
                         Ingredientes
@@ -211,7 +260,7 @@ export const RecipeDetail: React.FC<Props> = ({ recipe: initialRecipe, materials
                     </h3>
                 </div>
 
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto flex-1">
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="text-[10px] font-mono uppercase text-text-secondary border-b border-border-intense">
@@ -236,14 +285,11 @@ export const RecipeDetail: React.FC<Props> = ({ recipe: initialRecipe, materials
                                             <div className="text-[10px] text-text-muted font-mono">Base: {formatCurrency(calculateMaterialCost(mat))}</div>
                                         </td>
                                         <td className="py-2">
-                                            <input 
-                                                type="number" 
-                                                step="0.001"
-                                                min="0"
+                                            <NumberInput 
                                                 disabled={!canEdit}
                                                 className="w-full text-right bg-transparent border border-transparent hover:border-border-intense focus:border-brand-secondary focus:bg-bg-base rounded px-2 py-1 outline-none font-mono font-bold text-brand-secondary transition-all disabled:opacity-70 disabled:hover:border-transparent"
                                                 value={ing.cantidad_en_um_costos}
-                                                onChange={(e) => updateIngredientQty(ing.id, parseFloat(e.target.value) || 0)}
+                                                onChange={(val) => updateIngredientQty(ing.id, val)}
                                             />
                                         </td>
                                         <td className="py-2 text-right text-xs font-mono text-text-muted">
@@ -265,36 +311,77 @@ export const RecipeDetail: React.FC<Props> = ({ recipe: initialRecipe, materials
                                     </tr>
                                 );
                             })}
-                            
-                            {/* Add Row */}
-                            {canEdit && (
-                                <tr className="bg-bg-highlight/30">
-                                    <td className="py-3 pl-4 pr-4" colSpan={5}>
-                                        <div className="flex gap-2">
-                                            <select 
-                                                className="flex-1 text-xs bg-bg-base border border-border-intense rounded px-3 py-2 outline-none text-text-main font-mono focus:border-brand-primary"
-                                                value={addingIngredient}
-                                                onChange={(e) => setAddingIngredient(e.target.value)}
-                                            >
-                                                <option value="">// SELECCIONAR INSUMO...</option>
-                                                {availableMaterials.map(m => (
-                                                    <option key={m.id} value={m.id}>{m.nombre_item}</option>
-                                                ))}
-                                            </select>
-                                            <button 
-                                                disabled={!addingIngredient}
-                                                onClick={handleAddIngredient}
-                                                className="bg-brand-primary text-white px-3 py-2 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-brand-primaryHover transition"
-                                            >
-                                                <Plus size={18} />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            )}
                         </tbody>
                     </table>
                 </div>
+
+                {/* ADD INGREDIENT FOOTER */}
+                {canEdit && (
+                    <div className="border-t border-border-intense bg-bg-base p-4">
+                        <p className="text-[10px] font-mono text-text-secondary uppercase mb-2">Agregar Ingrediente</p>
+                        <div className="flex gap-2 items-start" ref={searchContainerRef}>
+                            
+                            {/* Predictive Search Input */}
+                            <div className="flex-1 relative">
+                                <div className={`flex items-center bg-bg-elevated border rounded px-3 py-2 transition-all ${isSearchOpen ? 'border-brand-secondary ring-1 ring-brand-secondary' : 'border-border-intense'}`}>
+                                    <Search size={14} className="text-text-muted mr-2" />
+                                    <input 
+                                        type="text"
+                                        placeholder="Buscar insumo..."
+                                        className="bg-transparent outline-none text-sm text-white w-full font-mono placeholder:text-text-muted/50"
+                                        value={ingredientSearch}
+                                        onChange={(e) => {
+                                            setIngredientSearch(e.target.value);
+                                            setIsSearchOpen(true);
+                                            setSelectedMaterialId(''); // Reset selection when typing
+                                        }}
+                                        onFocus={() => setIsSearchOpen(true)}
+                                    />
+                                    {ingredientSearch && (
+                                        <button onClick={clearSelection} className="text-text-muted hover:text-white ml-2">
+                                            <X size={14} />
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Dropdown Results */}
+                                {isSearchOpen && filteredMaterials.length > 0 && (
+                                    <div className="absolute bottom-full left-0 w-full mb-1 bg-bg-elevated border border-border-intense rounded shadow-2xl z-50 max-h-48 overflow-y-auto">
+                                        {filteredMaterials.map(m => (
+                                            <button
+                                                key={m.id}
+                                                className="w-full text-left px-4 py-2 text-xs font-mono text-text-secondary hover:bg-bg-highlight hover:text-white transition-colors border-b border-border-soft last:border-0"
+                                                onClick={() => handleSelectMaterial(m)}
+                                            >
+                                                {m.nombre_item}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Quantity Input */}
+                            <div className="w-24 relative">
+                                <NumberInput
+                                    className="w-full bg-bg-elevated border border-border-intense rounded px-3 py-2 text-sm text-white outline-none font-mono text-right focus:border-brand-secondary"
+                                    placeholder="KG"
+                                    value={newIngredientQty}
+                                    onChange={setNewIngredientQty}
+                                />
+                                <span className="absolute right-8 top-1/2 -translate-y-1/2 text-[10px] text-text-muted pointer-events-none">KG</span>
+                            </div>
+
+                            {/* Add Button */}
+                            <button 
+                                disabled={!selectedMaterialId || newIngredientQty <= 0}
+                                onClick={handleAddIngredient}
+                                className="bg-brand-primary text-white px-4 py-2 rounded font-bold uppercase tracking-wider text-xs hover:bg-brand-primaryHover disabled:opacity-50 disabled:cursor-not-allowed transition shadow-[0_0_10px_rgba(255,75,125,0.2)] h-[38px] flex items-center gap-1"
+                            >
+                                <Plus size={16} /> Agregar
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
 

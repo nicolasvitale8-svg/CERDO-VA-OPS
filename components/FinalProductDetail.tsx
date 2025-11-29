@@ -5,6 +5,7 @@ import { calculateProductStats, calculateMaterialCost, formatCurrency, formatDec
 import { canEditCosts } from '../services/authService';
 import { ArrowLeft, Save, Copy, Package, Box, ExternalLink, Tag, Trash2, Clock, Users, Plus, X, DollarSign, AlertTriangle } from 'lucide-react';
 import { PRODUCT_CATEGORIES } from '../constants';
+import { NumberInput } from './NumberInput';
 
 interface Props {
   product: FinalProduct;
@@ -169,23 +170,22 @@ export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, r
                         <div className="grid grid-cols-3 gap-4 pt-4 border-t border-border-soft">
                              <div>
                                 <label className="block text-[10px] font-mono text-text-secondary uppercase mb-1">Peso Un. (KG)</label>
-                                <input 
-                                    type="number" step="0.001"
+                                <NumberInput
                                     disabled={!canEdit}
                                     className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-sm text-white outline-none font-mono text-right font-bold disabled:opacity-70"
                                     value={product.peso_unitario_kg}
-                                    onChange={e => setProduct({...product, peso_unitario_kg: parseFloat(e.target.value)})}
+                                    onChange={val => setProduct({...product, peso_unitario_kg: val})}
                                 />
                             </div>
                             <div className="col-span-2">
                                 <label className="block text-[10px] font-mono text-text-secondary uppercase mb-1">Config Empaque</label>
                                 <div className="flex gap-2">
-                                    <input 
-                                        type="number" placeholder="Cant."
+                                    <NumberInput
+                                        placeholder="Cant."
                                         disabled={!canEdit}
                                         className="w-20 bg-bg-base border border-border-intense rounded px-2 py-2 text-sm text-white outline-none font-mono text-right disabled:opacity-70"
                                         value={product.unidades_por_paquete}
-                                        onChange={e => setProduct({...product, unidades_por_paquete: parseFloat(e.target.value)})}
+                                        onChange={val => setProduct({...product, unidades_por_paquete: val})}
                                     />
                                     <input 
                                         type="text" placeholder="Tipo (ej. CAJA)"
@@ -219,12 +219,11 @@ export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, r
                                                 <tr key={item.id}>
                                                     <td className="px-2 py-1 text-white truncate max-w-[120px]">{mat?.nombre_item || '???'}</td>
                                                     <td className="px-2 py-1">
-                                                        <input 
-                                                            type="number" step="0.01"
+                                                        <NumberInput
                                                             disabled={!canEdit}
                                                             className="w-full bg-transparent text-right outline-none text-white font-mono disabled:opacity-50"
                                                             value={item.cantidad}
-                                                            onChange={e => updatePkgItemQty(item.id, parseFloat(e.target.value))}
+                                                            onChange={val => updatePkgItemQty(item.id, val)}
                                                         />
                                                     </td>
                                                     <td className="px-2 py-1 text-right text-text-muted font-mono">{formatCurrency(cost)}</td>
@@ -276,12 +275,11 @@ export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, r
                                 <label className="text-[10px] font-mono text-text-secondary uppercase">Costo Extra Manual ($)</label>
                                 <div className="relative w-24">
                                     <span className="absolute left-2 top-1.5 text-text-muted text-xs">$</span>
-                                    <input 
-                                        type="number" step="0.01"
+                                    <NumberInput
                                         disabled={!canEdit}
                                         className="w-full bg-bg-base border border-border-intense rounded pl-5 pr-2 py-1 text-xs text-white outline-none font-mono text-right disabled:opacity-50"
                                         value={product.costo_empaque_extra || 0}
-                                        onChange={e => setProduct({...product, costo_empaque_extra: parseFloat(e.target.value)})}
+                                        onChange={val => setProduct({...product, costo_empaque_extra: val})}
                                     />
                                 </div>
                              </div>
@@ -309,42 +307,38 @@ export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, r
                     <div className="grid grid-cols-2 gap-4">
                          <div>
                             <label className="block text-[10px] font-mono text-text-secondary uppercase mb-1">Kg / Hora</label>
-                            <input 
-                                type="number" 
+                            <NumberInput
                                 disabled={!canEdit}
                                 className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono disabled:opacity-50"
                                 value={product.kg_formados_por_hora || 0}
-                                onChange={e => setProduct({...product, kg_formados_por_hora: parseFloat(e.target.value)})}
+                                onChange={val => setProduct({...product, kg_formados_por_hora: val})}
                             />
                         </div>
                         <div>
                             <label className="block text-[10px] font-mono text-text-secondary uppercase mb-1">Operarios</label>
-                            <input 
-                                type="number" 
+                            <NumberInput
                                 disabled={!canEdit}
                                 className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono disabled:opacity-50"
                                 value={product.operarios_equiv_formado || 1}
-                                onChange={e => setProduct({...product, operarios_equiv_formado: parseFloat(e.target.value)})}
+                                onChange={val => setProduct({...product, operarios_equiv_formado: val})}
                             />
                         </div>
                          <div>
                             <label className="block text-[10px] font-mono text-text-secondary uppercase mb-1">Min. Prep. (Fijos)</label>
-                            <input 
-                                type="number" 
+                            <NumberInput
                                 disabled={!canEdit}
                                 className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono disabled:opacity-50"
                                 value={product.min_fijos_formado_lote || 0}
-                                onChange={e => setProduct({...product, min_fijos_formado_lote: parseFloat(e.target.value)})}
+                                onChange={val => setProduct({...product, min_fijos_formado_lote: val})}
                             />
                         </div>
                         <div>
                             <label className="block text-[10px] font-mono text-text-secondary uppercase mb-1">Kg Base Prep.</label>
-                            <input 
-                                type="number" 
+                            <NumberInput
                                 disabled={!canEdit}
                                 className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono disabled:opacity-50"
                                 value={product.kg_paston_lote_formado || 1}
-                                onChange={e => setProduct({...product, kg_paston_lote_formado: parseFloat(e.target.value)})}
+                                onChange={val => setProduct({...product, kg_paston_lote_formado: val})}
                             />
                         </div>
                     </div>
@@ -358,42 +352,38 @@ export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, r
                     <div className="grid grid-cols-2 gap-4">
                          <div>
                             <label className="block text-[10px] font-mono text-text-secondary uppercase mb-1">Paquetes / Hora</label>
-                            <input 
-                                type="number" 
+                            <NumberInput
                                 disabled={!canEdit}
                                 className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono disabled:opacity-50"
                                 value={product.paquetes_por_hora || 0}
-                                onChange={e => setProduct({...product, paquetes_por_hora: parseFloat(e.target.value)})}
+                                onChange={val => setProduct({...product, paquetes_por_hora: val})}
                             />
                         </div>
                         <div>
                             <label className="block text-[10px] font-mono text-text-secondary uppercase mb-1">Operarios</label>
-                            <input 
-                                type="number" 
+                            <NumberInput
                                 disabled={!canEdit}
                                 className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono disabled:opacity-50"
                                 value={product.operarios_equiv_empaque || 1}
-                                onChange={e => setProduct({...product, operarios_equiv_empaque: parseFloat(e.target.value)})}
+                                onChange={val => setProduct({...product, operarios_equiv_empaque: val})}
                             />
                         </div>
                          <div>
                             <label className="block text-[10px] font-mono text-text-secondary uppercase mb-1">Min. Prep. (Fijos)</label>
-                            <input 
-                                type="number" 
+                            <NumberInput
                                 disabled={!canEdit}
                                 className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono disabled:opacity-50"
                                 value={product.min_fijos_empaque_lote || 0}
-                                onChange={e => setProduct({...product, min_fijos_empaque_lote: parseFloat(e.target.value)})}
+                                onChange={val => setProduct({...product, min_fijos_empaque_lote: val})}
                             />
                         </div>
                         <div>
                             <label className="block text-[10px] font-mono text-text-secondary uppercase mb-1">Paquetes Base</label>
-                            <input 
-                                type="number" 
+                            <NumberInput
                                 disabled={!canEdit}
                                 className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono disabled:opacity-50"
                                 value={product.paquetes_lote_empaque || 1}
-                                onChange={e => setProduct({...product, paquetes_lote_empaque: parseFloat(e.target.value)})}
+                                onChange={val => setProduct({...product, paquetes_lote_empaque: val})}
                             />
                         </div>
                     </div>
@@ -467,12 +457,11 @@ export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, r
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="block text-[10px] font-mono text-text-secondary uppercase mb-1">Coeficiente</label>
-                                    <input 
-                                        type="number" step="0.01"
+                                    <NumberInput
                                         disabled={!canEdit}
                                         className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono text-center font-bold disabled:opacity-50"
                                         value={product.coeficiente_sugerido || 1.35}
-                                        onChange={e => setProduct({...product, coeficiente_sugerido: parseFloat(e.target.value)})}
+                                        onChange={val => setProduct({...product, coeficiente_sugerido: val})}
                                     />
                                     <p className="text-[10px] text-text-muted mt-1 text-center font-mono">
                                         Markup {Math.round(((product.coeficiente_sugerido || 1.35) - 1) * 100)}%
@@ -480,12 +469,11 @@ export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, r
                                 </div>
                                 <div>
                                     <label className="block text-[10px] font-mono text-text-secondary uppercase mb-1">IVA %</label>
-                                    <input 
-                                        type="number" step="0.5"
+                                    <NumberInput
                                         disabled={!canEdit}
                                         className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono text-center disabled:opacity-50"
                                         value={product.iva_pct || 21}
-                                        onChange={e => setProduct({...product, iva_pct: parseFloat(e.target.value)})}
+                                        onChange={val => setProduct({...product, iva_pct: val})}
                                     />
                                 </div>
                             </div>
@@ -514,14 +502,13 @@ export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, r
 
                              <div>
                                 <label className="block text-[10px] font-mono text-text-secondary uppercase mb-1">Precio Neto (Cobrar)</label>
-                                <input 
-                                    type="number" step="0.01"
+                                <NumberInput
                                     disabled={!canEdit}
                                     className={`w-full bg-bg-base border rounded px-4 py-3 text-2xl font-mono font-bold text-white outline-none focus:ring-1 transition-all disabled:opacity-50 ${product.usa_precio_real_custom ? 'border-brand-secondary ring-brand-secondary' : 'border-border-intense focus:border-brand-primary'}`}
                                     value={Number((product.usa_precio_real_custom ? (product.precio_venta_real_neto || 0) : stats.precio_sugerido_neto).toFixed(2))}
-                                    onChange={e => setProduct({
+                                    onChange={val => setProduct({
                                         ...product, 
-                                        precio_venta_real_neto: parseFloat(e.target.value),
+                                        precio_venta_real_neto: val,
                                         usa_precio_real_custom: true
                                     })}
                                 />

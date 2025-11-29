@@ -102,6 +102,18 @@ function App() {
 
   // --- Data Handlers ---
 
+  const handleRestoreBackup = (data: any) => {
+      if (data.materials) setMaterials(data.materials);
+      if (data.recipes) setRecipes(data.recipes);
+      if (data.products) setProducts(data.products);
+      if (data.settings) setSettings(data.settings);
+      if (data.users) setUsers(data.users);
+      if (data.techSheets) setTechSheets(data.techSheets);
+      
+      alert("Copia de seguridad restaurada correctamente.");
+      setView('DASHBOARD');
+  };
+
   const handleSaveSettings = (s: GlobalSettings) => {
     setSettings(s);
   };
@@ -114,6 +126,33 @@ function App() {
       }
       return [...prev, material];
     });
+  };
+
+  const handleDeleteMaterial = (id: string) => {
+      try {
+        console.log("Intentando eliminar insumo:", id);
+        
+        // 1. Check integrity in Recipes (using optional chaining for safety)
+        const usedInRecipe = recipes.find(r => r.ingredientes?.some(i => i.materia_prima_id === id));
+        if (usedInRecipe) {
+            alert(`NO SE PUEDE ELIMINAR:\nEste insumo se utiliza en la receta "${usedInRecipe.nombre_producto}".\n\nDebe quitarlo de la receta antes de eliminarlo.`);
+            return;
+        }
+
+        // 2. Check integrity in Products (Packaging) (using optional chaining)
+        const usedInProduct = products.find(p => p.empaque_items?.some(i => i.materia_prima_id === id));
+        if (usedInProduct) {
+            alert(`NO SE PUEDE ELIMINAR:\nEste insumo se utiliza como empaque en "${usedInProduct.nombre_producto_final}".\n\nDebe quitarlo del producto antes de eliminarlo.`);
+            return;
+        }
+
+        if (window.confirm('¿Eliminar definitivamente este insumo?')) {
+            setMaterials(prev => prev.filter(m => m.id !== id));
+        }
+      } catch (error) {
+          console.error("Error al eliminar material:", error);
+          alert("Ocurrió un error al intentar eliminar. Por favor recargue la página.");
+      }
   };
 
   const handleSaveRecipe = (recipe: Recipe) => {
@@ -327,11 +366,21 @@ function App() {
                 recipes={recipes}
                 products={products}
                 settings={settings}
+                users={users}
+                techSheets={techSheets}
+                onRestoreBackup={handleRestoreBackup}
             />
         );
         break;
     case 'RAW_MATERIALS':
-      content = <RawMaterialsView materials={materials} onSave={handleSaveMaterial} currentUser={currentUser} />;
+      content = (
+          <RawMaterialsView 
+            materials={materials} 
+            onSave={handleSaveMaterial} 
+            onDelete={handleDeleteMaterial}
+            currentUser={currentUser} 
+          />
+      );
       break;
     case 'RECIPES':
       content = (
