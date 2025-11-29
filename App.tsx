@@ -9,16 +9,33 @@ import { FinalProductDetail } from './components/FinalProductDetail';
 import { Scaler } from './components/Scaler';
 import { LaborView } from './components/LaborView';
 import { DashboardView } from './components/DashboardView';
-import { RawMaterial, Recipe, FinalProduct, ViewState, GlobalSettings } from './types';
-import { INITIAL_MATERIALS, INITIAL_RECIPES, INITIAL_PRODUCTS, INITIAL_SETTINGS } from './constants';
+import { LoginView } from './components/LoginView';
+import { UsersView } from './components/UsersView';
+import { ExportToolsView } from './components/ExportToolsView';
+import { TechnicalSheetDetail } from './components/TechnicalSheetDetail';
+import { RawMaterial, Recipe, FinalProduct, ViewState, GlobalSettings, User, TechnicalDataSheet } from './types';
+import { INITIAL_MATERIALS, INITIAL_RECIPES, INITIAL_PRODUCTS, INITIAL_SETTINGS, INITIAL_USERS, INITIAL_TECHNICAL_SHEETS } from './constants';
+import { loginUser, canManageUsers, canEditCosts } from './services/authService';
 
 function App() {
-  // --- State Management ---
+  // --- Auth State ---
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+      const saved = localStorage.getItem('cv_session');
+      return saved ? JSON.parse(saved) : null;
+  });
+  const [loginError, setLoginError] = useState('');
+
+  // --- Data State ---
   const [view, setView] = useState<ViewState>('DASHBOARD');
   
   const [settings, setSettings] = useState<GlobalSettings>(() => {
     const saved = localStorage.getItem('cv_settings');
     return saved ? JSON.parse(saved) : INITIAL_SETTINGS;
+  });
+
+  const [users, setUsers] = useState<User[]>(() => {
+      const saved = localStorage.getItem('cv_users');
+      return saved ? JSON.parse(saved) : INITIAL_USERS;
   });
 
   const [materials, setMaterials] = useState<RawMaterial[]>(() => {
@@ -36,16 +53,54 @@ function App() {
     return saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
   });
 
+  const [techSheets, setTechSheets] = useState<TechnicalDataSheet[]>(() => {
+    const saved = localStorage.getItem('cv_tech_sheets');
+    return saved ? JSON.parse(saved) : INITIAL_TECHNICAL_SHEETS;
+  });
+
   const [activeRecipe, setActiveRecipe] = useState<Recipe | null>(null);
   const [activeProduct, setActiveProduct] = useState<FinalProduct | null>(null);
+  const [activeSheet, setActiveSheet] = useState<TechnicalDataSheet | null>(null);
 
   // Persistence Effects
   useEffect(() => { localStorage.setItem('cv_settings', JSON.stringify(settings)); }, [settings]);
   useEffect(() => { localStorage.setItem('cv_materials', JSON.stringify(materials)); }, [materials]);
   useEffect(() => { localStorage.setItem('cv_recipes', JSON.stringify(recipes)); }, [recipes]);
   useEffect(() => { localStorage.setItem('cv_products', JSON.stringify(products)); }, [products]);
+  useEffect(() => { localStorage.setItem('cv_users', JSON.stringify(users)); }, [users]);
+  useEffect(() => { localStorage.setItem('cv_tech_sheets', JSON.stringify(techSheets)); }, [techSheets]);
+  useEffect(() => { 
+      if (currentUser) localStorage.setItem('cv_session', JSON.stringify(currentUser));
+      else localStorage.removeItem('cv_session');
+  }, [currentUser]);
 
-  // --- Handlers ---
+  // --- Auth Handlers ---
+
+  const handleLogin = (email: string, pass: string) => {
+      const user = loginUser(users, email, pass);
+      if (user) {
+          setCurrentUser(user);
+          setLoginError('');
+          setView('DASHBOARD');
+      } else {
+          setLoginError('Credenciales inválidas o usuario inactivo.');
+      }
+  };
+
+  const handleLogout = () => {
+      setCurrentUser(null);
+      setView('LOGIN');
+  };
+
+  const handleSaveUser = (u: User) => {
+      setUsers(prev => {
+          const exists = prev.find(user => user.id === u.id);
+          if (exists) return prev.map(user => user.id === u.id ? u : user);
+          return [...prev, u];
+      });
+  };
+
+  // --- Data Handlers ---
 
   const handleSaveSettings = (s: GlobalSettings) => {
     setSettings(s);
@@ -62,7 +117,6 @@ function App() {
   };
 
   const handleSaveRecipe = (recipe: Recipe) => {
-    // Update last modified date
     const updatedRecipe = { 
       ...recipe, 
       fecha_ultima_modificacion: new Date().toISOString().split('T')[0] 
@@ -75,7 +129,6 @@ function App() {
       }
       return [...prev, updatedRecipe];
     });
-    // Don't auto-navigate back, stay on detail
     setActiveRecipe(updatedRecipe); 
   };
 
@@ -129,7 +182,6 @@ function App() {
   };
 
   const handleCreateProduct = () => {
-      // Default to first available recipe if exists
       const defaultRecipeId = recipes.length > 0 ? recipes[0].id : '';
       const newProduct: FinalProduct = {
           id: crypto.randomUUID(),
@@ -143,7 +195,6 @@ function App() {
           empaque_items: [],
           activo: true,
           fecha_ultima_modificacion: new Date().toISOString().split('T')[0],
-          // Defaults for labor
           kg_formados_por_hora: 60,
           operarios_equiv_formado: 1,
           min_fijos_formado_lote: 15,
@@ -152,7 +203,6 @@ function App() {
           operarios_equiv_empaque: 1,
           min_fijos_empaque_lote: 10,
           paquetes_lote_empaque: 60,
-          // Defaults for pricing
           metodo_precio: 'POR_PAQUETE',
           coeficiente_sugerido: 1.35,
           iva_pct: 21,
@@ -168,11 +218,9 @@ function App() {
           id: crypto.randomUUID(),
           nombre_producto_final: `${source.nombre_producto_final} (COPIA)`,
           fecha_ultima_modificacion: new Date().toISOString().split('T')[0],
-          // Reset custom price on duplicate to force recalculation or review
           usa_precio_real_custom: false
       };
       setActiveProduct(newProduct);
-      // Stay on detail view with new product
   };
 
   const handleSelectRecipe = (r: Recipe) => {
@@ -198,7 +246,59 @@ function App() {
       }
   };
 
-  // --- Router Logic ---
+  // --- Tech Sheet Handlers ---
+  const handleViewTechSheet = (r: Recipe) => {
+      const existingSheet = techSheets.find(ts => ts.receta_id === r.id);
+      if (existingSheet) {
+          setActiveSheet(existingSheet);
+      } else {
+          // Create new Sheet skeleton
+          const newSheet: TechnicalDataSheet = {
+              id: crypto.randomUUID(),
+              receta_id: r.id,
+              codigo: 'NEW-FT-000',
+              version: 'v1.0',
+              vigencia: new Date().toISOString().split('T')[0],
+              area: 'Producción',
+              responsable: '',
+              verificador: '',
+              base_lote_kg: 20,
+              bom_observaciones: {},
+              nota_critica_bom: '',
+              sop_referencia: '',
+              texto_proceso: '',
+              parametros_criticos: [],
+              texto_conservacion: ''
+          };
+          setActiveSheet(newSheet);
+      }
+      setView('TECH_SHEET_DETAIL');
+  };
+
+  const handleSaveTechSheet = (sheet: TechnicalDataSheet) => {
+      setTechSheets(prev => {
+          const exists = prev.find(s => s.id === sheet.id);
+          if (exists) return prev.map(s => s.id === sheet.id ? sheet : s);
+          return [...prev, sheet];
+      });
+  };
+
+
+  // --- Render & Routing ---
+
+  if (!currentUser) {
+      return <LoginView onLogin={handleLogin} error={loginError} />;
+  }
+
+  // Protection Guard for Admin Route
+  if (view === 'USERS' && !canManageUsers(currentUser.rol)) {
+      setView('DASHBOARD'); // Redirect fallback
+  }
+
+  // Protection Guard for Tools Route
+  if (view === 'TOOLS' && !canEditCosts(currentUser.rol)) {
+      setView('DASHBOARD');
+  }
 
   let content;
   switch (view) {
@@ -209,6 +309,7 @@ function App() {
               recipes={recipes}
               materials={materials}
               settings={settings}
+              currentUser={currentUser}
               onNavigateToProduct={handleSelectProduct}
               onNavigateToRecipe={handleGoToRecipe}
               onNavigateToMaterial={() => setView('RAW_MATERIALS')}
@@ -216,8 +317,21 @@ function App() {
           />
       );
       break;
+    case 'USERS':
+        content = <UsersView users={users} onSaveUser={handleSaveUser} />;
+        break;
+    case 'TOOLS':
+        content = (
+            <ExportToolsView 
+                materials={materials}
+                recipes={recipes}
+                products={products}
+                settings={settings}
+            />
+        );
+        break;
     case 'RAW_MATERIALS':
-      content = <RawMaterialsView materials={materials} onSave={handleSaveMaterial} />;
+      content = <RawMaterialsView materials={materials} onSave={handleSaveMaterial} currentUser={currentUser} />;
       break;
     case 'RECIPES':
       content = (
@@ -225,6 +339,7 @@ function App() {
           recipes={recipes} 
           materials={materials} 
           settings={settings}
+          currentUser={currentUser}
           onSelectRecipe={handleSelectRecipe}
           onCreateRecipe={handleCreateRecipe}
         />
@@ -240,14 +355,33 @@ function App() {
             recipe={activeRecipe} 
             materials={materials} 
             settings={settings}
+            currentUser={currentUser}
             onSave={handleSaveRecipe}
             onDelete={handleDeleteRecipe}
             onBack={() => setView('RECIPES')}
             onGoToScaler={handleGoToScaler}
+            onViewTechSheet={handleViewTechSheet}
           />
         );
       }
       break;
+    case 'TECH_SHEET_DETAIL':
+        if (!activeSheet || !activeRecipe) {
+            setView('RECIPES');
+            content = null;
+        } else {
+            content = (
+                <TechnicalSheetDetail 
+                    sheet={activeSheet}
+                    recipe={activeRecipe}
+                    materials={materials}
+                    currentUser={currentUser}
+                    onSave={handleSaveTechSheet}
+                    onBack={() => setView('RECIPE_DETAIL')}
+                />
+            );
+        }
+        break;
     case 'FINAL_PRODUCTS':
         content = (
             <FinalProductsView 
@@ -255,6 +389,7 @@ function App() {
                 recipes={recipes}
                 materials={materials}
                 settings={settings}
+                currentUser={currentUser}
                 onSelectProduct={handleSelectProduct}
                 onCreateProduct={handleCreateProduct}
             />
@@ -271,6 +406,7 @@ function App() {
                     recipes={recipes}
                     materials={materials}
                     settings={settings}
+                    currentUser={currentUser}
                     onSave={handleSaveProduct}
                     onDelete={handleDeleteProduct}
                     onBack={() => setView('FINAL_PRODUCTS')}
@@ -307,7 +443,7 @@ function App() {
   }
 
   return (
-    <Layout currentView={view} setView={setView}>
+    <Layout currentView={view} setView={setView} currentUser={currentUser} onLogout={handleLogout}>
       {content}
     </Layout>
   );

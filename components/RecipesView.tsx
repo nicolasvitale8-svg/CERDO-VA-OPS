@@ -1,14 +1,17 @@
 
 import React, { useMemo } from 'react';
-import { RawMaterial, Recipe, GlobalSettings } from '../types';
+import { RawMaterial, Recipe, GlobalSettings, User } from '../types';
 import { PRODUCT_CATEGORIES } from '../constants';
 import { calculateRecipeStats, formatCurrency, formatDecimal } from '../services/calcService';
-import { Plus, ChefHat, Activity, Database } from 'lucide-react';
+import { canEditCosts } from '../services/authService';
+import { exportToExcel } from '../services/exportService';
+import { Plus, ChefHat, Database, Download } from 'lucide-react';
 
 interface Props {
   recipes: Recipe[];
   materials: RawMaterial[];
   settings: GlobalSettings;
+  currentUser: User;
   onSelectRecipe: (r: Recipe) => void;
   onCreateRecipe: () => void;
 }
@@ -24,12 +27,24 @@ const getCategoryColor = (cat: string) => {
   }
 };
 
-export const RecipesView: React.FC<Props> = ({ recipes, materials, settings, onSelectRecipe, onCreateRecipe }) => {
+export const RecipesView: React.FC<Props> = ({ recipes, materials, settings, currentUser, onSelectRecipe, onCreateRecipe }) => {
   const [filterRubro, setFilterRubro] = React.useState('');
+  const canEdit = canEditCosts(currentUser.rol);
 
   const displayedRecipes = useMemo(() => {
     return recipes.filter(r => filterRubro ? r.rubro_producto === filterRubro : true);
   }, [recipes, filterRubro]);
+
+  const handleExport = () => {
+    exportToExcel({
+        materials,
+        recipes: displayedRecipes,
+        products: [],
+        settings,
+        datasets: ['RECIPES', 'RECIPE_DETAILS'],
+        filename: `recetas_${filterRubro || 'todas'}_${new Date().toISOString().slice(0,10)}.xlsx`
+    });
+  };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -38,13 +53,27 @@ export const RecipesView: React.FC<Props> = ({ recipes, materials, settings, onS
           <h2 className="text-3xl font-header font-bold text-white uppercase tracking-wide">Recetas Base</h2>
           <p className="text-text-secondary text-sm mt-1 font-mono">PASTONES // MEZCLAS & COSTOS DE MASA</p>
         </div>
-        <button
-          onClick={onCreateRecipe}
-          className="flex items-center gap-2 bg-bg-highlight border border-brand-secondary/50 text-brand-secondary px-5 py-2.5 rounded hover:bg-brand-secondary/10 transition font-medium tracking-wide"
-        >
-          <Plus size={18} />
-          <span>NUEVA RECETA BASE</span>
-        </button>
+        <div className="flex gap-3">
+             {canEdit && (
+                <button
+                    onClick={handleExport}
+                    className="flex items-center gap-2 px-4 py-2 border border-border-intense bg-bg-highlight text-text-secondary rounded hover:text-white transition font-medium tracking-wide text-sm"
+                    title="Exportar Filtrados"
+                >
+                    <Download size={16} />
+                    EXPORTAR
+                </button>
+             )}
+            {canEdit && (
+                <button
+                onClick={onCreateRecipe}
+                className="flex items-center gap-2 bg-bg-highlight border border-brand-secondary/50 text-brand-secondary px-5 py-2.5 rounded hover:bg-brand-secondary/10 transition font-medium tracking-wide"
+                >
+                <Plus size={18} />
+                <span>NUEVA RECETA BASE</span>
+                </button>
+            )}
+        </div>
       </div>
 
        {/* Filters */}
@@ -121,13 +150,15 @@ export const RecipesView: React.FC<Props> = ({ recipes, materials, settings, onS
         })}
         
         {/* Empty State Action */}
-        <button 
-          onClick={onCreateRecipe}
-          className="border border-dashed border-border-intense rounded bg-bg-elevated/50 flex flex-col items-center justify-center text-text-muted hover:border-brand-primary/50 hover:text-brand-primary hover:bg-bg-highlight transition h-full min-h-[200px]"
-        >
-          <ChefHat size={32} className="mb-3 opacity-70" />
-          <span className="font-mono text-sm tracking-widest">>> CREAR RECETA BASE</span>
-        </button>
+        {canEdit && (
+            <button 
+            onClick={onCreateRecipe}
+            className="border border-dashed border-border-intense rounded bg-bg-elevated/50 flex flex-col items-center justify-center text-text-muted hover:border-brand-primary/50 hover:text-brand-primary hover:bg-bg-highlight transition h-full min-h-[200px]"
+            >
+            <ChefHat size={32} className="mb-3 opacity-70" />
+            <span className="font-mono text-sm tracking-widest">>> CREAR RECETA BASE</span>
+            </button>
+        )}
       </div>
     </div>
   );

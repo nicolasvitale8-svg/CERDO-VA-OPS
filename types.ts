@@ -5,6 +5,18 @@ export interface GlobalSettings {
   costo_hora_operario: number;
 }
 
+export type UserRole = 'ADMIN' | 'COSTOS' | 'PRODUCCION' | 'LECTURA';
+
+export interface User {
+  id: string;
+  email: string;
+  nombre: string;
+  rol: UserRole;
+  password_hash: string; // In a real app this is hashed. Here we simulate.
+  activo: boolean;
+  ultimo_login?: string;
+}
+
 export interface RawMaterial {
   id: string;
   rubro_compra: string; // e.g., ALMACÉN, FRIGORÍFICO
@@ -86,8 +98,43 @@ export interface FinalProduct {
   paquetes_lote_empaque?: number;
 }
 
+// --- TECHNICAL DATA SHEET (FICHA TÉCNICA) ---
+export interface CriticalParameter {
+    id: string;
+    control: string; // e.g. "Tiempo de mezclado"
+    limite_criterio: string; // e.g. "<= 2 min"
+    accion_correctiva: string; // e.g. "Detener y enfriar"
+}
+
+export interface TechnicalDataSheet {
+    id: string;
+    receta_id: string; // One-to-one with Recipe
+    codigo: string; // e.g. "CERDOVA-FT-PST-CER-001"
+    version: string; // e.g. "v1.0"
+    vigencia: string; // Date string
+    area: string; // e.g. "Producción / Molienda"
+    responsable: string; // e.g. "Jefe de Producción"
+    verificador: string; // e.g. "Calidad"
+    base_lote_kg: number; // e.g. 20.00
+    
+    // Section 1: BOM Extra Info (Observations per ingredient)
+    // Key: ingredient_id, Value: observation string
+    bom_observaciones: Record<string, string>; 
+    nota_critica_bom: string;
+
+    // Section 2: Process
+    sop_referencia: string; // e.g. "SOP MOL-MEZ-001 v0.3.0"
+    texto_proceso: string; // Markdown/Text area
+
+    // Section 3: Critical Params
+    parametros_criticos: CriticalParameter[];
+
+    // Section 4: Conservation
+    texto_conservacion: string;
+}
+
 // Helper types for View logic
-export type ViewState = 'DASHBOARD' | 'RAW_MATERIALS' | 'RECIPES' | 'RECIPE_DETAIL' | 'SCALER' | 'FINAL_PRODUCTS' | 'FINAL_PRODUCT_DETAIL' | 'LABOR';
+export type ViewState = 'LOGIN' | 'DASHBOARD' | 'RAW_MATERIALS' | 'RECIPES' | 'RECIPE_DETAIL' | 'SCALER' | 'FINAL_PRODUCTS' | 'FINAL_PRODUCT_DETAIL' | 'LABOR' | 'USERS' | 'TOOLS' | 'TECH_SHEET_DETAIL';
 
 export interface CalculatedRecipeStats {
   rinde_kg: number;

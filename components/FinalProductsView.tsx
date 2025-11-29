@@ -1,8 +1,10 @@
 
 import React, { useMemo, useState } from 'react';
-import { FinalProduct, Recipe, RawMaterial, GlobalSettings } from '../types';
+import { FinalProduct, Recipe, RawMaterial, GlobalSettings, User } from '../types';
 import { calculateProductStats, formatCurrency, formatDecimal } from '../services/calcService';
-import { Plus, Search, Tag, Box, ArrowRight, AlertTriangle, Filter } from 'lucide-react';
+import { canEditCosts } from '../services/authService';
+import { exportToExcel } from '../services/exportService';
+import { Plus, Search, ArrowRight, AlertTriangle, Download } from 'lucide-react';
 import { PRODUCT_CATEGORIES } from '../constants';
 
 interface Props {
@@ -10,19 +12,24 @@ interface Props {
   recipes: Recipe[];
   materials: RawMaterial[];
   settings: GlobalSettings;
+  currentUser: User;
   onSelectProduct: (p: FinalProduct) => void;
   onCreateProduct: () => void;
 }
 
-export const FinalProductsView: React.FC<Props> = ({ products, recipes, materials, settings, onSelectProduct, onCreateProduct }) => {
+export const FinalProductsView: React.FC<Props> = ({ products, recipes, materials, settings, currentUser, onSelectProduct, onCreateProduct }) => {
   const [filterRubro, setFilterRubro] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterRisk, setFilterRisk] = useState(false); // New state for risk filtering
+  const [filterRisk, setFilterRisk] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<'ALL'|'ACTIVE'|'INACTIVE'>('ACTIVE');
+
+  const canEdit = canEditCosts(currentUser.rol);
 
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
         const matchesRubro = filterRubro ? p.tipo_producto === filterRubro : true;
         const matchesSearch = p.nombre_producto_final.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesStatus = filterStatus === 'ALL' ? true : filterStatus === 'ACTIVE' ? p.activo : !p.activo;
         
         let matchesRisk = true;
         if (filterRisk) {
@@ -36,9 +43,20 @@ export const FinalProductsView: React.FC<Props> = ({ products, recipes, material
             }
         }
 
-        return matchesSearch && matchesRubro && matchesRisk;
+        return matchesSearch && matchesRubro && matchesRisk && matchesStatus;
     });
-  }, [products, filterRubro, searchTerm, filterRisk, recipes, materials, settings]);
+  }, [products, filterRubro, searchTerm, filterRisk, filterStatus, recipes, materials, settings]);
+
+  const handleExport = () => {
+    exportToExcel({
+        materials,
+        recipes,
+        products: filteredProducts,
+        settings,
+        datasets: ['PRODUCTS', 'PACKAGING'],
+        filename: `productos_${filterRubro || 'todos'}_${new Date().toISOString().slice(0,10)}.xlsx`
+    });
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -47,13 +65,27 @@ export const FinalProductsView: React.FC<Props> = ({ products, recipes, material
                 <h2 className="text-3xl font-header font-bold text-white uppercase tracking-wide">Productos Finales</h2>
                 <p className="text-text-secondary text-sm mt-1 font-mono">CATÁLOGO DE VENTA // PRECIOS & MÁRGENES</p>
             </div>
-            <button
-                onClick={onCreateProduct}
-                className="flex items-center gap-2 bg-brand-primary text-white px-5 py-2.5 rounded hover:bg-brand-primaryHover transition shadow-[0_0_15px_rgba(255,75,125,0.3)] font-medium tracking-wide"
-            >
-                <Plus size={18} />
-                <span>NUEVO PRODUCTO</span>
-            </button>
+            <div className="flex gap-3">
+                 {canEdit && (
+                    <button
+                        onClick={handleExport}
+                        className="flex items-center gap-2 px-4 py-2 border border-border-intense bg-bg-highlight text-text-secondary rounded hover:text-white transition font-medium tracking-wide text-sm"
+                        title="Exportar Filtrados"
+                    >
+                        <Download size={16} />
+                        EXPORTAR
+                    </button>
+                 )}
+                {canEdit && (
+                    <button
+                        onClick={onCreateProduct}
+                        className="flex items-center gap-2 bg-brand-primary text-white px-5 py-2.5 rounded hover:bg-brand-primaryHover transition shadow-[0_0_15px_rgba(255,75,125,0.3)] font-medium tracking-wide"
+                    >
+                        <Plus size={18} />
+                        <span>NUEVO PRODUCTO</span>
+                    </button>
+                )}
+            </div>
         </div>
 
         {/* Filters */}
@@ -69,6 +101,16 @@ export const FinalProductsView: React.FC<Props> = ({ products, recipes, material
                 />
             </div>
             
+            <select
+                className="px-3 py-2.5 bg-bg-base border border-border-intense rounded text-text-main focus:border-brand-secondary outline-none font-mono text-sm uppercase"
+                value={filterStatus}
+                onChange={e => setFilterStatus(e.target.value as any)}
+            >
+                <option value="ACTIVE">Activos</option>
+                <option value="ALL">Todos</option>
+                <option value="INACTIVE">Inactivos</option>
+            </select>
+
             {/* Risk Filter Toggle */}
             <button
                 onClick={() => setFilterRisk(!filterRisk)}
@@ -134,6 +176,7 @@ export const FinalProductsView: React.FC<Props> = ({ products, recipes, material
                                         <div className="font-bold text-white group-hover:text-brand-secondary transition-colors flex items-center gap-2">
                                             {p.nombre_producto_final}
                                             {isRisky && <AlertTriangle size={14} className="text-status-error" />}
+                                            {!p.activo && <span className="text-[10px] bg-border-intense text-text-muted px-1 rounded">INACTIVO</span>}
                                         </div>
                                         <div className="flex items-center gap-2 mt-1">
                                             <span className="text-[10px] bg-bg-base border border-border-soft px-1.5 rounded text-text-muted uppercase font-mono">{p.tipo_producto}</span>

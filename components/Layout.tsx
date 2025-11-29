@@ -1,15 +1,18 @@
 
 import React from 'react';
-import { ViewState } from '../types';
-import { LayoutDashboard, Scale, ChefHat, Package, Menu, ShoppingBag, Users } from 'lucide-react';
+import { ViewState, User } from '../types';
+import { canManageUsers, canEditCosts } from '../services/authService';
+import { LayoutDashboard, Scale, ChefHat, Package, Menu, ShoppingBag, Users, LogOut, Shield, Settings } from 'lucide-react';
 
 interface Props {
   currentView: ViewState;
   setView: (v: ViewState) => void;
   children: React.ReactNode;
+  currentUser: User;
+  onLogout: () => void;
 }
 
-export const Layout: React.FC<Props> = ({ currentView, setView, children }) => {
+export const Layout: React.FC<Props> = ({ currentView, setView, children, currentUser, onLogout }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
 
   const navItems = [
@@ -20,6 +23,14 @@ export const Layout: React.FC<Props> = ({ currentView, setView, children }) => {
     { id: 'SCALER', label: 'ESCALADOR / PROD', icon: Scale },
     { id: 'LABOR', label: 'MANO DE OBRA', icon: Users },
   ];
+
+  if (canManageUsers(currentUser.rol)) {
+      navItems.push({ id: 'USERS', label: 'USUARIOS', icon: Shield });
+  }
+
+  if (canEditCosts(currentUser.rol)) {
+      navItems.push({ id: 'TOOLS', label: 'HERRAMIENTAS', icon: Settings });
+  }
 
   return (
     <div className="min-h-screen bg-bg-base text-text-main flex flex-col md:flex-row relative overflow-hidden">
@@ -52,8 +63,24 @@ export const Layout: React.FC<Props> = ({ currentView, setView, children }) => {
           </h1>
           <p className="text-xs font-mono text-text-muted mt-2 tracking-widest">SYSTEM V1.2 // ONLINE</p>
         </div>
+
+        {/* User Profile */}
+        <div className="p-4 border-b border-border-soft bg-bg-highlight/20">
+            <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded bg-bg-base border border-border-intense flex items-center justify-center font-bold text-brand-secondary">
+                    {currentUser.nombre.charAt(0)}
+                </div>
+                <div className="flex-1 overflow-hidden">
+                    <p className="text-xs font-bold text-white truncate">{currentUser.nombre}</p>
+                    <p className="text-[10px] font-mono text-text-muted truncate uppercase">{currentUser.rol}</p>
+                </div>
+                <button onClick={onLogout} className="text-text-muted hover:text-white" title="Cerrar Sesión">
+                    <LogOut size={14} />
+                </button>
+            </div>
+        </div>
         
-        <nav className="p-4 space-y-2 mt-4">
+        <nav className="p-4 space-y-2 mt-2">
           {navItems.map((item) => {
             const isActive = currentView === item.id || 
                              (item.id === 'RECIPES' && currentView === 'RECIPE_DETAIL') ||

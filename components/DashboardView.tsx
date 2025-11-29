@@ -1,16 +1,18 @@
 
 import React, { useMemo, useState } from 'react';
-import { FinalProduct, Recipe, RawMaterial, GlobalSettings, CalculatedProductStats } from '../types';
+import { FinalProduct, Recipe, RawMaterial, GlobalSettings, CalculatedProductStats, User } from '../types';
 import { calculateProductStats, formatCurrency, formatDecimal } from '../services/calcService';
+import { canViewFinancials } from '../services/authService';
 import { PRODUCT_CATEGORIES } from '../constants';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
-import { AlertTriangle, TrendingUp, AlertCircle, CheckCircle, ArrowRight, DollarSign, Package } from 'lucide-react';
+import { AlertTriangle, TrendingUp, AlertCircle, CheckCircle, ArrowRight, DollarSign, Package, Lock } from 'lucide-react';
 
 interface Props {
   products: FinalProduct[];
   recipes: Recipe[];
   materials: RawMaterial[];
   settings: GlobalSettings;
+  currentUser: User;
   onNavigateToProduct: (p: FinalProduct) => void;
   onNavigateToRecipe: (rId: string) => void;
   onNavigateToMaterial: (mId: string) => void;
@@ -18,10 +20,11 @@ interface Props {
 }
 
 export const DashboardView: React.FC<Props> = ({ 
-    products, recipes, materials, settings, 
+    products, recipes, materials, settings, currentUser,
     onNavigateToProduct, onNavigateToRecipe, onNavigateToMaterial, onViewAllProducts 
 }) => {
   const [filterRubro, setFilterRubro] = useState('TODOS');
+  const showFinancials = canViewFinancials(currentUser.rol);
   
   // 1. Prepare Data
   const dashboardData = useMemo(() => {
@@ -102,12 +105,14 @@ export const DashboardView: React.FC<Props> = ({
 
     // Alerts
     const alerts = [];
-    filtered.forEach(p => {
-        const s = statsMap.get(p.id);
-        if (s && s.margen_real_pct < 15) {
-            alerts.push({ type: 'CRITICAL', msg: `Margen crítico (${formatDecimal(s.margen_real_pct, 1)}%)`, item: p.nombre_producto_final, id: p.id, entity: 'PRODUCT' });
-        }
-    });
+    if (showFinancials) {
+        filtered.forEach(p => {
+            const s = statsMap.get(p.id);
+            if (s && s.margen_real_pct < 15) {
+                alerts.push({ type: 'CRITICAL', msg: `Margen crítico (${formatDecimal(s.margen_real_pct, 1)}%)`, item: p.nombre_producto_final, id: p.id, entity: 'PRODUCT' });
+            }
+        });
+    }
     if (materialsWithoutPrice > 0) alerts.push({ type: 'WARN', msg: `${materialsWithoutPrice} insumos sin precio`, item: 'Base de Datos', id: '', entity: 'MATERIAL_DB' });
 
     return {
@@ -122,7 +127,7 @@ export const DashboardView: React.FC<Props> = ({
         filtered
     };
 
-  }, [products, recipes, materials, settings, filterRubro]);
+  }, [products, recipes, materials, settings, filterRubro, showFinancials]);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-20">
@@ -158,9 +163,15 @@ export const DashboardView: React.FC<Props> = ({
                   <h3 className="text-xs font-mono text-text-secondary uppercase tracking-widest">Costo Prom. / KG</h3>
                   <DollarSign size={16} className="text-brand-secondary" />
               </div>
-              <div className="text-3xl font-header font-bold text-white mb-2">
-                  {formatCurrency(dashboardData.avgCostKg)}
-              </div>
+              {showFinancials ? (
+                <div className="text-3xl font-header font-bold text-white mb-2">
+                    {formatCurrency(dashboardData.avgCostKg)}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-text-muted mb-2">
+                    <Lock size={20} /> <span className="text-sm font-mono">RESTRICTED</span>
+                </div>
+              )}
               <p className="text-[10px] text-text-muted font-mono">
                   Promedio ponderado global
               </p>
@@ -171,15 +182,27 @@ export const DashboardView: React.FC<Props> = ({
           <div className="bg-bg-elevated border border-border-soft p-6 rounded relative overflow-hidden group hover:border-brand-primary/50 transition">
               <div className="flex justify-between items-start mb-4">
                   <h3 className="text-xs font-mono text-text-secondary uppercase tracking-widest">Margen Promedio</h3>
-                  <TrendingUp size={16} className={dashboardData.avgMargin >= 25 ? 'text-status-ok' : 'text-status-warning'} />
+                  {showFinancials ? (
+                    <TrendingUp size={16} className={dashboardData.avgMargin >= 25 ? 'text-status-ok' : 'text-status-warning'} />
+                  ) : (
+                    <Lock size={16} className="text-text-muted" />
+                  )}
               </div>
-              <div className={`text-3xl font-header font-bold mb-2 ${dashboardData.avgMargin >= 25 ? 'text-status-ok' : 'text-status-warning'}`}>
-                  {formatDecimal(dashboardData.avgMargin, 1)}%
-              </div>
-              <div className="flex items-center gap-2">
-                   <span className="text-[10px] bg-bg-highlight px-1.5 py-0.5 rounded text-text-muted font-mono border border-border-intense">OBJ: 25%</span>
-                   <span className="text-[10px] text-text-muted font-mono">Real vs Objetivo</span>
-              </div>
+              {showFinancials ? (
+                  <>
+                    <div className={`text-3xl font-header font-bold mb-2 ${dashboardData.avgMargin >= 25 ? 'text-status-ok' : 'text-status-warning'}`}>
+                        {formatDecimal(dashboardData.avgMargin, 1)}%
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span className="text-[10px] bg-bg-highlight px-1.5 py-0.5 rounded text-text-muted font-mono border border-border-intense">OBJ: 25%</span>
+                        <span className="text-[10px] text-text-muted font-mono">Real vs Objetivo</span>
+                    </div>
+                  </>
+              ) : (
+                <div className="flex items-center gap-2 text-text-muted mb-2">
+                    <span className="text-sm font-mono">RESTRICTED ACCESS</span>
+                </div>
+              )}
           </div>
 
           {/* KPI 3: Risk */}
@@ -188,12 +211,20 @@ export const DashboardView: React.FC<Props> = ({
                   <h3 className="text-xs font-mono text-text-secondary uppercase tracking-widest">En Riesgo</h3>
                   <AlertTriangle size={16} className="text-status-error" />
               </div>
-              <div className="text-3xl font-header font-bold text-white mb-2">
-                  {Math.round((dashboardData.lowMarginCount / (dashboardData.count || 1)) * 100)}%
-              </div>
-              <p className="text-[10px] text-status-error font-mono flex items-center gap-1">
-                  <span className="font-bold">{dashboardData.lowMarginCount}</span> productos margen &lt; 20%
-              </p>
+              {showFinancials ? (
+                  <>
+                    <div className="text-3xl font-header font-bold text-white mb-2">
+                        {Math.round((dashboardData.lowMarginCount / (dashboardData.count || 1)) * 100)}%
+                    </div>
+                    <p className="text-[10px] text-status-error font-mono flex items-center gap-1">
+                        <span className="font-bold">{dashboardData.lowMarginCount}</span> productos margen &lt; 20%
+                    </p>
+                  </>
+              ) : (
+                 <div className="text-sm text-text-muted font-mono mb-2">
+                     Revise alertas operativas
+                 </div>
+              )}
           </div>
 
           {/* KPI 4: Data Health */}
@@ -226,84 +257,86 @@ export const DashboardView: React.FC<Props> = ({
       </div>
 
       {/* 3. Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Chart A: Structure */}
-          <div className="bg-bg-elevated border border-border-soft p-6 rounded">
-               <h3 className="text-xs font-header font-bold text-text-secondary uppercase mb-6 flex items-center gap-2">
-                   <Package size={14} /> Estructura de Costos (Promedio)
-               </h3>
-               <div className="h-64 w-full relative">
-                   <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                            <Pie
-                                data={dashboardData.structureData}
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={60}
-                                outerRadius={80}
-                                paddingAngle={5}
-                                dataKey="value"
-                                stroke="none"
-                            >
-                                {dashboardData.structureData.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={entry.color} />
-                                ))}
-                            </Pie>
-                            <Tooltip 
-                                contentStyle={{ backgroundColor: '#0C1017', borderColor: '#343C4F', borderRadius: '4px', color: '#F5F7FF' }}
-                                itemStyle={{ color: '#F5F7FF', fontSize: '12px', fontFamily: 'monospace' }}
-                                formatter={(value: number) => formatCurrency(value)}
-                            />
-                        </PieChart>
-                   </ResponsiveContainer>
-                   {/* Legend Overlay */}
-                   <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
-                        <span className="block text-2xl font-bold text-white font-mono">
-                            {formatCurrency(dashboardData.avgCostKg)}
-                        </span>
-                        <span className="text-[10px] text-text-muted font-mono uppercase">Costo/Kg</span>
-                   </div>
-               </div>
-               <div className="flex justify-center gap-4 mt-4 text-[10px] font-mono text-text-secondary uppercase">
-                    {dashboardData.structureData.map(d => (
-                        <div key={d.name} className="flex items-center gap-1">
-                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: d.color }}></span>
-                            {d.name}
-                        </div>
-                    ))}
-               </div>
-          </div>
-
-          {/* Chart B: Margin by Rubro */}
-          <div className="lg:col-span-2 bg-bg-elevated border border-border-soft p-6 rounded">
-               <h3 className="text-xs font-header font-bold text-text-secondary uppercase mb-6 flex items-center gap-2">
-                   <TrendingUp size={14} /> Margen por Rubro
-               </h3>
-               <div className="h-64 w-full">
+      {showFinancials && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Chart A: Structure */}
+            <div className="bg-bg-elevated border border-border-soft p-6 rounded">
+                <h3 className="text-xs font-header font-bold text-text-secondary uppercase mb-6 flex items-center gap-2">
+                    <Package size={14} /> Estructura de Costos (Promedio)
+                </h3>
+                <div className="h-64 w-full relative">
                     <ResponsiveContainer width="100%" height="100%">
-                        <BarChart
-                            data={dashboardData.marginByCat}
-                            layout="vertical"
-                            margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                        >
-                            <XAxis type="number" hide />
-                            <YAxis dataKey="name" type="category" tick={{ fill: '#A2ADC7', fontSize: 10, fontFamily: 'monospace' }} width={100} />
-                            <Tooltip 
-                                cursor={{fill: '#151B26'}}
-                                contentStyle={{ backgroundColor: '#0C1017', borderColor: '#343C4F', borderRadius: '4px', color: '#F5F7FF' }}
-                                itemStyle={{ color: '#F5F7FF', fontSize: '12px', fontFamily: 'monospace' }}
-                                formatter={(value: number) => [`${value.toFixed(1)}%`, 'Margen']}
-                            />
-                            <Bar dataKey="margin" radius={[0, 4, 4, 0]}>
-                                {dashboardData.marginByCat.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={entry.margin >= 25 ? '#22C55E' : entry.margin < 15 ? '#F97373' : '#FACC15'} />
-                                ))}
-                            </Bar>
-                        </BarChart>
+                            <PieChart>
+                                <Pie
+                                    data={dashboardData.structureData}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={60}
+                                    outerRadius={80}
+                                    paddingAngle={5}
+                                    dataKey="value"
+                                    stroke="none"
+                                >
+                                    {dashboardData.structureData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.color} />
+                                    ))}
+                                </Pie>
+                                <Tooltip 
+                                    contentStyle={{ backgroundColor: '#0C1017', borderColor: '#343C4F', borderRadius: '4px', color: '#F5F7FF' }}
+                                    itemStyle={{ color: '#F5F7FF', fontSize: '12px', fontFamily: 'monospace' }}
+                                    formatter={(value: number) => formatCurrency(value)}
+                                />
+                            </PieChart>
                     </ResponsiveContainer>
-               </div>
-          </div>
-      </div>
+                    {/* Legend Overlay */}
+                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
+                            <span className="block text-2xl font-bold text-white font-mono">
+                                {formatCurrency(dashboardData.avgCostKg)}
+                            </span>
+                            <span className="text-[10px] text-text-muted font-mono uppercase">Costo/Kg</span>
+                    </div>
+                </div>
+                <div className="flex justify-center gap-4 mt-4 text-[10px] font-mono text-text-secondary uppercase">
+                        {dashboardData.structureData.map(d => (
+                            <div key={d.name} className="flex items-center gap-1">
+                                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: d.color }}></span>
+                                {d.name}
+                            </div>
+                        ))}
+                </div>
+            </div>
+
+            {/* Chart B: Margin by Rubro */}
+            <div className="lg:col-span-2 bg-bg-elevated border border-border-soft p-6 rounded">
+                <h3 className="text-xs font-header font-bold text-text-secondary uppercase mb-6 flex items-center gap-2">
+                    <TrendingUp size={14} /> Margen por Rubro
+                </h3>
+                <div className="h-64 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart
+                                data={dashboardData.marginByCat}
+                                layout="vertical"
+                                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                            >
+                                <XAxis type="number" hide />
+                                <YAxis dataKey="name" type="category" tick={{ fill: '#A2ADC7', fontSize: 10, fontFamily: 'monospace' }} width={100} />
+                                <Tooltip 
+                                    cursor={{fill: '#151B26'}}
+                                    contentStyle={{ backgroundColor: '#0C1017', borderColor: '#343C4F', borderRadius: '4px', color: '#F5F7FF' }}
+                                    itemStyle={{ color: '#F5F7FF', fontSize: '12px', fontFamily: 'monospace' }}
+                                    formatter={(value: number) => [`${value.toFixed(1)}%`, 'Margen']}
+                                />
+                                <Bar dataKey="margin" radius={[0, 4, 4, 0]}>
+                                    {dashboardData.marginByCat.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.margin >= 25 ? '#22C55E' : entry.margin < 15 ? '#F97373' : '#FACC15'} />
+                                    ))}
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                </div>
+            </div>
+        </div>
+      )}
 
       {/* 4. Alerts & Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -359,16 +392,18 @@ export const DashboardView: React.FC<Props> = ({
                    Accesos Rápidos
                 </h3>
                 <div className="grid grid-cols-2 gap-4">
-                     <button 
-                        onClick={onViewAllProducts}
-                        className="p-4 bg-bg-base border border-border-soft rounded hover:border-brand-primary/50 group transition text-left"
-                     >
-                        <div className="text-brand-primary mb-2 group-hover:scale-110 transition-transform origin-left">
-                            <AlertTriangle size={24} />
-                        </div>
-                        <div className="text-xs font-bold text-white uppercase">Ver Productos Riesgo</div>
-                        <div className="text-[10px] text-text-muted mt-1">Margen &lt; 20%</div>
-                     </button>
+                     {showFinancials && (
+                        <button 
+                            onClick={onViewAllProducts}
+                            className="p-4 bg-bg-base border border-border-soft rounded hover:border-brand-primary/50 group transition text-left"
+                        >
+                            <div className="text-brand-primary mb-2 group-hover:scale-110 transition-transform origin-left">
+                                <AlertTriangle size={24} />
+                            </div>
+                            <div className="text-xs font-bold text-white uppercase">Ver Productos Riesgo</div>
+                            <div className="text-[10px] text-text-muted mt-1">Margen &lt; 20%</div>
+                        </button>
+                     )}
                      
                      <button 
                         onClick={() => onNavigateToMaterial('ALL')}

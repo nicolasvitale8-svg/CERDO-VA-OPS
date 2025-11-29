@@ -1,19 +1,25 @@
+
 import React, { useState, useMemo } from 'react';
-import { RawMaterial } from '../types';
+import { RawMaterial, User } from '../types';
 import { PURCHASE_CATEGORIES } from '../constants';
 import { calculateMaterialCost, formatCurrency } from '../services/calcService';
-import { Plus, Search, Edit2, AlertTriangle, CheckCircle } from 'lucide-react';
+import { canEditCosts } from '../services/authService';
+import { exportToExcel } from '../services/exportService';
+import { Plus, Search, Edit2, CheckCircle, Download } from 'lucide-react';
 
 interface Props {
   materials: RawMaterial[];
   onSave: (m: RawMaterial) => void;
+  currentUser: User;
 }
 
-export const RawMaterialsView: React.FC<Props> = ({ materials, onSave }) => {
+export const RawMaterialsView: React.FC<Props> = ({ materials, onSave, currentUser }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [editingItem, setEditingItem] = useState<Partial<RawMaterial>>({});
+
+  const canEdit = canEditCosts(currentUser.rol);
 
   const filteredMaterials = useMemo(() => {
     return materials.filter(m => {
@@ -24,6 +30,7 @@ export const RawMaterialsView: React.FC<Props> = ({ materials, onSave }) => {
   }, [materials, searchTerm, categoryFilter]);
 
   const handleEdit = (item: RawMaterial) => {
+    if (!canEdit) return;
     setEditingItem({ ...item });
     setIsEditing(true);
   };
@@ -51,6 +58,17 @@ export const RawMaterialsView: React.FC<Props> = ({ materials, onSave }) => {
     }
   };
 
+  const handleExport = () => {
+    exportToExcel({
+        materials: filteredMaterials,
+        recipes: [],
+        products: [],
+        settings: { costo_hora_operario: 0 }, // Not needed for materials export
+        datasets: ['MATERIALS'],
+        filename: `materias_primas_${new Date().toISOString().slice(0,10)}.xlsx`
+    });
+  };
+
   const calculatedCostPreview = editingItem.precio_unidad_compra !== undefined && editingItem.cantidad_por_unidad_compra
     ? (editingItem.precio_unidad_compra / editingItem.cantidad_por_unidad_compra) * (editingItem.merma_factor || 1)
     : 0;
@@ -62,13 +80,27 @@ export const RawMaterialsView: React.FC<Props> = ({ materials, onSave }) => {
           <h2 className="text-3xl font-header font-bold text-white uppercase tracking-wide">Materias Primas</h2>
           <p className="text-text-secondary text-sm mt-1 font-mono">DATABASE // INSUMOS & COSTOS BASE</p>
         </div>
-        <button
-          onClick={handleNew}
-          className="flex items-center gap-2 bg-brand-primary text-white px-5 py-2.5 rounded hover:bg-brand-primaryHover transition shadow-[0_0_15px_rgba(255,75,125,0.3)] font-medium tracking-wide"
-        >
-          <Plus size={18} />
-          <span>NUEVO INSUMO</span>
-        </button>
+        <div className="flex gap-3">
+             {canEdit && (
+                <button
+                    onClick={handleExport}
+                    className="flex items-center gap-2 px-4 py-2 border border-border-intense bg-bg-highlight text-text-secondary rounded hover:text-white transition font-medium tracking-wide text-sm"
+                    title="Exportar Filtrados"
+                >
+                    <Download size={16} />
+                    EXPORTAR
+                </button>
+             )}
+            {canEdit && (
+                <button
+                onClick={handleNew}
+                className="flex items-center gap-2 bg-brand-primary text-white px-5 py-2.5 rounded hover:bg-brand-primaryHover transition shadow-[0_0_15px_rgba(255,75,125,0.3)] font-medium tracking-wide"
+                >
+                <Plus size={18} />
+                <span>NUEVO INSUMO</span>
+                </button>
+            )}
+        </div>
       </div>
 
       {/* Filters */}
@@ -104,7 +136,7 @@ export const RawMaterialsView: React.FC<Props> = ({ materials, onSave }) => {
                 <th className="px-6 py-4">Unidad Compra</th>
                 <th className="px-6 py-4 text-right">Precio Compra</th>
                 <th className="px-6 py-4 text-right text-brand-secondary">Costo Real</th>
-                <th className="px-6 py-4 text-center">Edit</th>
+                {canEdit && <th className="px-6 py-4 text-center">Edit</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-border-soft/50 text-sm">
@@ -130,20 +162,22 @@ export const RawMaterialsView: React.FC<Props> = ({ materials, onSave }) => {
                     <td className="px-6 py-3 text-right font-mono font-bold text-brand-secondary group-hover:text-brand-secondary/80">
                       {formatCurrency(realCost)} <span className="text-[10px] font-normal text-text-muted">/ {m.unidad_costos}</span>
                     </td>
-                    <td className="px-6 py-3 text-center">
-                      <button
-                        onClick={() => handleEdit(m)}
-                        className="text-text-muted hover:text-brand-primary transition-colors p-2"
-                      >
-                        <Edit2 size={16} />
-                      </button>
-                    </td>
+                    {canEdit && (
+                        <td className="px-6 py-3 text-center">
+                        <button
+                            onClick={() => handleEdit(m)}
+                            className="text-text-muted hover:text-brand-primary transition-colors p-2"
+                        >
+                            <Edit2 size={16} />
+                        </button>
+                        </td>
+                    )}
                   </tr>
                 );
               })}
               {filteredMaterials.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-text-muted font-mono">
+                  <td colSpan={canEdit ? 6 : 5} className="px-6 py-12 text-center text-text-muted font-mono">
                     [ NO_DATA_FOUND ]
                   </td>
                 </tr>

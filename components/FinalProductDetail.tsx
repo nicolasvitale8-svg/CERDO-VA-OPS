@@ -1,7 +1,8 @@
 
 import React, { useState, useMemo } from 'react';
-import { FinalProduct, Recipe, RawMaterial, GlobalSettings, PackagingIngredient } from '../types';
+import { FinalProduct, Recipe, RawMaterial, GlobalSettings, PackagingIngredient, User } from '../types';
 import { calculateProductStats, calculateMaterialCost, formatCurrency, formatDecimal } from '../services/calcService';
+import { canEditCosts } from '../services/authService';
 import { ArrowLeft, Save, Copy, Package, Box, ExternalLink, Tag, Trash2, Clock, Users, Plus, X, DollarSign, AlertTriangle } from 'lucide-react';
 import { PRODUCT_CATEGORIES } from '../constants';
 
@@ -10,6 +11,7 @@ interface Props {
   recipes: Recipe[];
   materials: RawMaterial[];
   settings: GlobalSettings;
+  currentUser: User;
   onSave: (p: FinalProduct) => void;
   onDelete: (id: string) => void;
   onBack: () => void;
@@ -17,13 +19,13 @@ interface Props {
   onGoToRecipe: (rId: string) => void;
 }
 
-export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, recipes, materials, settings, onSave, onDelete, onBack, onDuplicate, onGoToRecipe }) => {
+export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, recipes, materials, settings, currentUser, onSave, onDelete, onBack, onDuplicate, onGoToRecipe }) => {
   const [product, setProduct] = useState<FinalProduct>(initialProduct);
   const [addingPkgItem, setAddingPkgItem] = useState('');
   
+  const canEdit = canEditCosts(currentUser.rol);
   const baseRecipe = recipes.find(r => r.id === product.receta_id);
   
-  // Guard clause if base recipe is deleted
   if (!baseRecipe) return (
       <div className="p-10 text-center">
           <p className="text-status-error font-bold">ERROR: Receta base no encontrada.</p>
@@ -33,13 +35,12 @@ export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, r
 
   const stats = calculateProductStats(product, baseRecipe, materials, settings);
 
-  // Filter materials for packaging dropdown
   const packagingMaterials = useMemo(() => {
     return materials.filter(m => m.rubro_compra === 'PACKAGING' || m.rubro_compra === 'EMPAQUE' || m.unidad_costos === 'UN');
   }, [materials]);
 
   const handleAddPkgItem = () => {
-    if (!addingPkgItem) return;
+    if (!canEdit || !addingPkgItem) return;
     const newItem: PackagingIngredient = {
         id: crypto.randomUUID(),
         materia_prima_id: addingPkgItem,
@@ -53,6 +54,7 @@ export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, r
   };
 
   const removePkgItem = (itemId: string) => {
+      if (!canEdit) return;
       setProduct(prev => ({
           ...prev,
           empaque_items: prev.empaque_items.filter(i => i.id !== itemId)
@@ -60,6 +62,7 @@ export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, r
   };
 
   const updatePkgItemQty = (itemId: string, qty: number) => {
+      if (!canEdit) return;
       setProduct(prev => ({
           ...prev,
           empaque_items: prev.empaque_items.map(i => i.id === itemId ? { ...i, cantidad: qty } : i)
@@ -67,9 +70,10 @@ export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, r
   };
 
   const handleUseSuggestedPrice = () => {
+      if (!canEdit) return;
       setProduct(prev => ({
           ...prev,
-          precio_venta_real_neto: undefined, // undefined signals "use suggested"
+          precio_venta_real_neto: undefined,
           usa_precio_real_custom: false
       }));
   };
@@ -88,27 +92,31 @@ export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, r
                 <ArrowLeft size={16} className="mr-2" /> VOLVER
             </button>
             <div className="flex gap-3">
-                 <button 
-                    onClick={() => onDelete(product.id)}
-                    className="flex items-center gap-2 px-3 py-2 border border-status-error/50 bg-bg-highlight text-status-error rounded hover:bg-status-error hover:text-white transition group"
-                    title="Eliminar Producto"
-                >
-                    <Trash2 size={18} />
-                </button>
-                 <button 
-                    onClick={() => onDuplicate(product)}
-                    className="flex items-center gap-2 px-4 py-2 border border-border-intense bg-bg-highlight text-text-secondary rounded hover:text-white hover:border-text-secondary transition"
-                >
-                    <Copy size={16} />
-                    <span className="font-mono text-xs hidden sm:inline tracking-wider">DUPLICAR</span>
-                </button>
-                <button 
-                    onClick={handleSave}
-                    className="flex items-center gap-2 px-6 py-2 bg-brand-primary text-white rounded hover:bg-brand-primaryHover shadow-[0_0_15px_rgba(255,75,125,0.4)] transition"
-                >
-                    <Save size={18} />
-                    <span className="font-bold tracking-wide text-sm">GUARDAR PRODUCTO</span>
-                </button>
+                 {canEdit && (
+                    <>
+                        <button 
+                            onClick={() => onDelete(product.id)}
+                            className="flex items-center gap-2 px-3 py-2 border border-status-error/50 bg-bg-highlight text-status-error rounded hover:bg-status-error hover:text-white transition group"
+                            title="Eliminar Producto"
+                        >
+                            <Trash2 size={18} />
+                        </button>
+                        <button 
+                            onClick={() => onDuplicate(product)}
+                            className="flex items-center gap-2 px-4 py-2 border border-border-intense bg-bg-highlight text-text-secondary rounded hover:text-white hover:border-text-secondary transition"
+                        >
+                            <Copy size={16} />
+                            <span className="font-mono text-xs hidden sm:inline tracking-wider">DUPLICAR</span>
+                        </button>
+                        <button 
+                            onClick={handleSave}
+                            className="flex items-center gap-2 px-6 py-2 bg-brand-primary text-white rounded hover:bg-brand-primaryHover shadow-[0_0_15px_rgba(255,75,125,0.4)] transition"
+                        >
+                            <Save size={18} />
+                            <span className="font-bold tracking-wide text-sm">GUARDAR PRODUCTO</span>
+                        </button>
+                    </>
+                 )}
             </div>
         </div>
 
@@ -116,7 +124,8 @@ export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, r
             
             {/* LEFT COLUMN: Editor */}
             <div className="lg:col-span-5 space-y-6">
-                <div className="bg-bg-elevated border border-border-soft rounded p-6 shadow-lg">
+                <div className="bg-bg-elevated border border-border-soft rounded p-6 shadow-lg relative">
+                    {!canEdit && <div className="absolute top-0 right-0 p-2 text-[10px] text-text-muted border border-text-muted rounded m-2">SOLO LECTURA</div>}
                     <h3 className="text-sm font-header font-bold text-text-secondary uppercase mb-4 border-b border-border-soft pb-2">
                         Configuración del Producto
                     </h3>
@@ -125,7 +134,8 @@ export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, r
                         <div>
                             <label className="block text-[10px] font-mono text-brand-secondary uppercase mb-1">Nombre Comercial</label>
                             <input 
-                                className="w-full bg-bg-base border border-border-intense rounded px-3 py-2 font-header font-bold text-white focus:border-brand-primary outline-none transition-colors text-lg"
+                                disabled={!canEdit}
+                                className="w-full bg-bg-base border border-border-intense rounded px-3 py-2 font-header font-bold text-white focus:border-brand-primary outline-none transition-colors text-lg disabled:opacity-70"
                                 value={product.nombre_producto_final}
                                 onChange={e => setProduct({...product, nombre_producto_final: e.target.value})}
                             />
@@ -135,7 +145,8 @@ export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, r
                              <div>
                                 <label className="block text-[10px] font-mono text-text-secondary uppercase mb-1">Tipo / Rubro</label>
                                 <select 
-                                    className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-xs text-white outline-none font-mono"
+                                    disabled={!canEdit}
+                                    className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-xs text-white outline-none font-mono disabled:opacity-70"
                                     value={product.tipo_producto}
                                     onChange={e => setProduct({...product, tipo_producto: e.target.value})}
                                 >
@@ -145,7 +156,8 @@ export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, r
                             <div>
                                 <label className="block text-[10px] font-mono text-text-secondary uppercase mb-1">Receta Base</label>
                                 <select 
-                                    className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-xs text-white outline-none font-mono truncate"
+                                    disabled={!canEdit}
+                                    className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-xs text-white outline-none font-mono truncate disabled:opacity-70"
                                     value={product.receta_id}
                                     onChange={e => setProduct({...product, receta_id: e.target.value})}
                                 >
@@ -159,7 +171,8 @@ export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, r
                                 <label className="block text-[10px] font-mono text-text-secondary uppercase mb-1">Peso Un. (KG)</label>
                                 <input 
                                     type="number" step="0.001"
-                                    className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-sm text-white outline-none font-mono text-right font-bold"
+                                    disabled={!canEdit}
+                                    className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-sm text-white outline-none font-mono text-right font-bold disabled:opacity-70"
                                     value={product.peso_unitario_kg}
                                     onChange={e => setProduct({...product, peso_unitario_kg: parseFloat(e.target.value)})}
                                 />
@@ -169,13 +182,15 @@ export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, r
                                 <div className="flex gap-2">
                                     <input 
                                         type="number" placeholder="Cant."
-                                        className="w-20 bg-bg-base border border-border-intense rounded px-2 py-2 text-sm text-white outline-none font-mono text-right"
+                                        disabled={!canEdit}
+                                        className="w-20 bg-bg-base border border-border-intense rounded px-2 py-2 text-sm text-white outline-none font-mono text-right disabled:opacity-70"
                                         value={product.unidades_por_paquete}
                                         onChange={e => setProduct({...product, unidades_por_paquete: parseFloat(e.target.value)})}
                                     />
                                     <input 
                                         type="text" placeholder="Tipo (ej. CAJA)"
-                                        className="flex-1 bg-bg-base border border-border-intense rounded px-2 py-2 text-sm text-white outline-none font-mono"
+                                        disabled={!canEdit}
+                                        className="flex-1 bg-bg-base border border-border-intense rounded px-2 py-2 text-sm text-white outline-none font-mono disabled:opacity-70"
                                         value={product.tipo_paquete}
                                         onChange={e => setProduct({...product, tipo_paquete: e.target.value})}
                                     />
@@ -206,39 +221,44 @@ export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, r
                                                     <td className="px-2 py-1">
                                                         <input 
                                                             type="number" step="0.01"
-                                                            className="w-full bg-transparent text-right outline-none text-white font-mono"
+                                                            disabled={!canEdit}
+                                                            className="w-full bg-transparent text-right outline-none text-white font-mono disabled:opacity-50"
                                                             value={item.cantidad}
                                                             onChange={e => updatePkgItemQty(item.id, parseFloat(e.target.value))}
                                                         />
                                                     </td>
                                                     <td className="px-2 py-1 text-right text-text-muted font-mono">{formatCurrency(cost)}</td>
                                                     <td className="px-1 text-center">
-                                                        <button onClick={() => removePkgItem(item.id)} className="text-text-muted hover:text-status-error">
-                                                            <X size={12}/>
-                                                        </button>
+                                                        {canEdit && (
+                                                            <button onClick={() => removePkgItem(item.id)} className="text-text-muted hover:text-status-error">
+                                                                <X size={12}/>
+                                                            </button>
+                                                        )}
                                                     </td>
                                                 </tr>
                                             );
                                         })}
-                                        <tr className="bg-bg-highlight/20">
-                                            <td className="p-1" colSpan={3}>
-                                                <select 
-                                                    className="w-full bg-transparent text-xs text-text-secondary outline-none"
-                                                    value={addingPkgItem}
-                                                    onChange={e => setAddingPkgItem(e.target.value)}
-                                                >
-                                                    <option value="">+ AGREGAR EMPAQUE...</option>
-                                                    {packagingMaterials.map(m => (
-                                                        <option key={m.id} value={m.id}>{m.nombre_item}</option>
-                                                    ))}
-                                                </select>
-                                            </td>
-                                            <td className="text-center">
-                                                <button onClick={handleAddPkgItem} disabled={!addingPkgItem} className="text-brand-secondary disabled:opacity-30">
-                                                    <Plus size={14} />
-                                                </button>
-                                            </td>
-                                        </tr>
+                                        {canEdit && (
+                                            <tr className="bg-bg-highlight/20">
+                                                <td className="p-1" colSpan={3}>
+                                                    <select 
+                                                        className="w-full bg-transparent text-xs text-text-secondary outline-none"
+                                                        value={addingPkgItem}
+                                                        onChange={e => setAddingPkgItem(e.target.value)}
+                                                    >
+                                                        <option value="">+ AGREGAR EMPAQUE...</option>
+                                                        {packagingMaterials.map(m => (
+                                                            <option key={m.id} value={m.id}>{m.nombre_item}</option>
+                                                        ))}
+                                                    </select>
+                                                </td>
+                                                <td className="text-center">
+                                                    <button onClick={handleAddPkgItem} disabled={!addingPkgItem} className="text-brand-secondary disabled:opacity-30">
+                                                        <Plus size={14} />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        )}
                                     </tbody>
                                     <tfoot className="bg-bg-highlight/50 font-mono text-[10px] text-text-secondary">
                                         <tr>
@@ -258,7 +278,8 @@ export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, r
                                     <span className="absolute left-2 top-1.5 text-text-muted text-xs">$</span>
                                     <input 
                                         type="number" step="0.01"
-                                        className="w-full bg-bg-base border border-border-intense rounded pl-5 pr-2 py-1 text-xs text-white outline-none font-mono text-right"
+                                        disabled={!canEdit}
+                                        className="w-full bg-bg-base border border-border-intense rounded pl-5 pr-2 py-1 text-xs text-white outline-none font-mono text-right disabled:opacity-50"
                                         value={product.costo_empaque_extra || 0}
                                         onChange={e => setProduct({...product, costo_empaque_extra: parseFloat(e.target.value)})}
                                     />
@@ -290,7 +311,8 @@ export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, r
                             <label className="block text-[10px] font-mono text-text-secondary uppercase mb-1">Kg / Hora</label>
                             <input 
                                 type="number" 
-                                className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono"
+                                disabled={!canEdit}
+                                className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono disabled:opacity-50"
                                 value={product.kg_formados_por_hora || 0}
                                 onChange={e => setProduct({...product, kg_formados_por_hora: parseFloat(e.target.value)})}
                             />
@@ -299,7 +321,8 @@ export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, r
                             <label className="block text-[10px] font-mono text-text-secondary uppercase mb-1">Operarios</label>
                             <input 
                                 type="number" 
-                                className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono"
+                                disabled={!canEdit}
+                                className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono disabled:opacity-50"
                                 value={product.operarios_equiv_formado || 1}
                                 onChange={e => setProduct({...product, operarios_equiv_formado: parseFloat(e.target.value)})}
                             />
@@ -308,7 +331,8 @@ export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, r
                             <label className="block text-[10px] font-mono text-text-secondary uppercase mb-1">Min. Prep. (Fijos)</label>
                             <input 
                                 type="number" 
-                                className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono"
+                                disabled={!canEdit}
+                                className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono disabled:opacity-50"
                                 value={product.min_fijos_formado_lote || 0}
                                 onChange={e => setProduct({...product, min_fijos_formado_lote: parseFloat(e.target.value)})}
                             />
@@ -317,7 +341,8 @@ export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, r
                             <label className="block text-[10px] font-mono text-text-secondary uppercase mb-1">Kg Base Prep.</label>
                             <input 
                                 type="number" 
-                                className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono"
+                                disabled={!canEdit}
+                                className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono disabled:opacity-50"
                                 value={product.kg_paston_lote_formado || 1}
                                 onChange={e => setProduct({...product, kg_paston_lote_formado: parseFloat(e.target.value)})}
                             />
@@ -335,7 +360,8 @@ export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, r
                             <label className="block text-[10px] font-mono text-text-secondary uppercase mb-1">Paquetes / Hora</label>
                             <input 
                                 type="number" 
-                                className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono"
+                                disabled={!canEdit}
+                                className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono disabled:opacity-50"
                                 value={product.paquetes_por_hora || 0}
                                 onChange={e => setProduct({...product, paquetes_por_hora: parseFloat(e.target.value)})}
                             />
@@ -344,7 +370,8 @@ export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, r
                             <label className="block text-[10px] font-mono text-text-secondary uppercase mb-1">Operarios</label>
                             <input 
                                 type="number" 
-                                className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono"
+                                disabled={!canEdit}
+                                className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono disabled:opacity-50"
                                 value={product.operarios_equiv_empaque || 1}
                                 onChange={e => setProduct({...product, operarios_equiv_empaque: parseFloat(e.target.value)})}
                             />
@@ -353,7 +380,8 @@ export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, r
                             <label className="block text-[10px] font-mono text-text-secondary uppercase mb-1">Min. Prep. (Fijos)</label>
                             <input 
                                 type="number" 
-                                className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono"
+                                disabled={!canEdit}
+                                className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono disabled:opacity-50"
                                 value={product.min_fijos_empaque_lote || 0}
                                 onChange={e => setProduct({...product, min_fijos_empaque_lote: parseFloat(e.target.value)})}
                             />
@@ -362,7 +390,8 @@ export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, r
                             <label className="block text-[10px] font-mono text-text-secondary uppercase mb-1">Paquetes Base</label>
                             <input 
                                 type="number" 
-                                className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono"
+                                disabled={!canEdit}
+                                className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono disabled:opacity-50"
                                 value={product.paquetes_lote_empaque || 1}
                                 onChange={e => setProduct({...product, paquetes_lote_empaque: parseFloat(e.target.value)})}
                             />
@@ -409,12 +438,14 @@ export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, r
                                 <label className="block text-[10px] font-mono text-text-secondary uppercase mb-1">Base del Precio</label>
                                 <div className="flex bg-bg-base p-1 rounded border border-border-intense">
                                     <button 
+                                        disabled={!canEdit}
                                         onClick={() => setProduct({...product, metodo_precio: 'POR_PAQUETE'})}
                                         className={`flex-1 py-1 text-xs font-bold font-mono rounded transition-colors ${product.metodo_precio === 'POR_PAQUETE' ? 'bg-bg-highlight text-white border border-border-soft shadow-sm' : 'text-text-muted hover:text-text-secondary'}`}
                                     >
                                         PAQUETE
                                     </button>
                                     <button 
+                                        disabled={!canEdit}
                                         onClick={() => setProduct({...product, metodo_precio: 'POR_KG'})}
                                         className={`flex-1 py-1 text-xs font-bold font-mono rounded transition-colors ${product.metodo_precio === 'POR_KG' ? 'bg-bg-highlight text-white border border-border-soft shadow-sm' : 'text-text-muted hover:text-text-secondary'}`}
                                     >
@@ -438,7 +469,8 @@ export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, r
                                     <label className="block text-[10px] font-mono text-text-secondary uppercase mb-1">Coeficiente</label>
                                     <input 
                                         type="number" step="0.01"
-                                        className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono text-center font-bold"
+                                        disabled={!canEdit}
+                                        className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono text-center font-bold disabled:opacity-50"
                                         value={product.coeficiente_sugerido || 1.35}
                                         onChange={e => setProduct({...product, coeficiente_sugerido: parseFloat(e.target.value)})}
                                     />
@@ -450,7 +482,8 @@ export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, r
                                     <label className="block text-[10px] font-mono text-text-secondary uppercase mb-1">IVA %</label>
                                     <input 
                                         type="number" step="0.5"
-                                        className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono text-center"
+                                        disabled={!canEdit}
+                                        className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono text-center disabled:opacity-50"
                                         value={product.iva_pct || 21}
                                         onChange={e => setProduct({...product, iva_pct: parseFloat(e.target.value)})}
                                     />
@@ -483,7 +516,8 @@ export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, r
                                 <label className="block text-[10px] font-mono text-text-secondary uppercase mb-1">Precio Neto (Cobrar)</label>
                                 <input 
                                     type="number" step="0.01"
-                                    className={`w-full bg-bg-base border rounded px-4 py-3 text-2xl font-mono font-bold text-white outline-none focus:ring-1 transition-all ${product.usa_precio_real_custom ? 'border-brand-secondary ring-brand-secondary' : 'border-border-intense focus:border-brand-primary'}`}
+                                    disabled={!canEdit}
+                                    className={`w-full bg-bg-base border rounded px-4 py-3 text-2xl font-mono font-bold text-white outline-none focus:ring-1 transition-all disabled:opacity-50 ${product.usa_precio_real_custom ? 'border-brand-secondary ring-brand-secondary' : 'border-border-intense focus:border-brand-primary'}`}
                                     value={Number((product.usa_precio_real_custom ? (product.precio_venta_real_neto || 0) : stats.precio_sugerido_neto).toFixed(2))}
                                     onChange={e => setProduct({
                                         ...product, 
@@ -505,7 +539,7 @@ export const FinalProductDetail: React.FC<Props> = ({ product: initialProduct, r
                                 <span className="text-2xl font-mono font-bold">{formatDecimal(stats.margen_real_pct, 1)}%</span>
                              </div>
 
-                             {product.usa_precio_real_custom && (
+                             {product.usa_precio_real_custom && canEdit && (
                                  <button 
                                     onClick={handleUseSuggestedPrice}
                                     className="w-full text-xs py-2 border border-dashed border-text-muted text-text-muted hover:text-white hover:border-white rounded transition-colors uppercase tracking-wider"

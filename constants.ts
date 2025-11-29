@@ -1,9 +1,52 @@
 
-import { RawMaterial, Recipe, FinalProduct, GlobalSettings } from './types';
+import { RawMaterial, Recipe, FinalProduct, GlobalSettings, User, TechnicalDataSheet } from './types';
 
 export const INITIAL_SETTINGS: GlobalSettings = {
   costo_hora_operario: 5000,
 };
+
+export const INITIAL_USERS: User[] = [
+    {
+        id: 'u-nico',
+        email: 'nicolasvitale8@gmail.com',
+        nombre: 'Nicolas Vitale',
+        password_hash: '24.Nicolas.834',
+        rol: 'ADMIN',
+        activo: true
+    },
+    {
+        id: 'u1',
+        email: 'admin@cerdova.com',
+        nombre: 'Administrador',
+        password_hash: 'admin123', // Demo password
+        rol: 'ADMIN',
+        activo: true
+    },
+    {
+        id: 'u2',
+        email: 'costos@cerdova.com',
+        nombre: 'Analista Costos',
+        password_hash: 'costos123',
+        rol: 'COSTOS',
+        activo: true
+    },
+    {
+        id: 'u3',
+        email: 'produccion@cerdova.com',
+        nombre: 'Jefe Planta',
+        password_hash: 'prod123',
+        rol: 'PRODUCCION',
+        activo: true
+    },
+    {
+        id: 'u4',
+        email: 'invitado@cerdova.com',
+        nombre: 'Invitado',
+        password_hash: 'leer123',
+        rol: 'LECTURA',
+        activo: true
+    }
+];
 
 export const INITIAL_MATERIALS: RawMaterial[] = [
   // --- ADITIVOS ---
@@ -715,6 +758,38 @@ export const INITIAL_PRODUCTS: FinalProduct[] = [
     iva_pct: 21,
     usa_precio_real_custom: false
   }
+];
+
+// --- EXAMPLE IMPORTED DATA FROM WORD ---
+export const INITIAL_TECHNICAL_SHEETS: TechnicalDataSheet[] = [
+    {
+        id: 'ts-rec-bife-cerdo',
+        receta_id: 'rec-bife-cerdo',
+        codigo: 'CERDOVA-FT-PST-CER-001',
+        version: 'v1.0',
+        vigencia: '2025-11-01',
+        area: 'Producción / Molienda y Mezclado',
+        responsable: 'Jefe de Producción',
+        verificador: 'Calidad',
+        base_lote_kg: 20,
+        bom_observaciones: {
+            'i1': 'MP ≤ 4 °C',
+            'i4': 'Agua a 2-4°C'
+        },
+        nota_critica_bom: 'Nota crítica: El DYPRO-500 hidratado (0,650 kg + 2,050 kg agua) se muele junto con las carnes.',
+        sop_referencia: 'SOP MOL-MEZ-001 v0.3.0',
+        texto_proceso: `Condiciones previas: equipos fríos ≤ 4 °C.
+1. Preparar: verificar DYPRO hidratado (8–12 h antes).
+2. Picar carnes según especificación.
+3. Incorporar sales y aditivos en mezcladora.
+4. Mezclar hasta homogeneidad total.`,
+        parametros_criticos: [
+            { id: 'p1', control: 'Tiempo de mezclado', limite_criterio: '≤ 2 min', accion_correctiva: '> 2 min → detener y enfriar' },
+            { id: 'p2', control: 'Temperatura mezcla', limite_criterio: '≤ 6 °C (ideal 4 °C)', accion_correctiva: '> 8 °C → parar y avisar Calidad' },
+            { id: 'p3', control: 'Homogeneidad', limite_criterio: 'Color parejo, sin grumos', accion_correctiva: 'Re-mezclar ≤ 1 min' }
+        ],
+        texto_conservacion: 'Pastón ≤ 4 °C hasta formado (máx 2 h). Si no se forma en < 4 h → congelado rápido a −18 °C (SOP CONG-PT-001).'
+    }
 ];
 
 export const PRODUCT_CATEGORIES = ['BIFES', 'HAMBURGUESAS', 'MEDALLONES', 'MILANESAS', 'EMBUTIDOS'];

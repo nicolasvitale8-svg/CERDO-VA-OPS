@@ -1,24 +1,28 @@
 
 import React, { useState, useMemo } from 'react';
-import { RawMaterial, Recipe, Ingredient, GlobalSettings } from '../types';
+import { RawMaterial, Recipe, Ingredient, GlobalSettings, User } from '../types';
 import { calculateRecipeStats, calculateMaterialCost, formatCurrency, formatDecimal } from '../services/calcService';
-import { ArrowLeft, Plus, Trash2, Save, Calculator, AlertCircle, Clock, Users } from 'lucide-react';
+import { canEditCosts } from '../services/authService';
+import { ArrowLeft, Plus, Trash2, Save, Calculator, Clock, Users, FileText } from 'lucide-react';
 import { PRODUCT_CATEGORIES } from '../constants';
 
 interface Props {
   recipe: Recipe;
   materials: RawMaterial[];
   settings: GlobalSettings;
+  currentUser: User;
   onSave: (r: Recipe) => void;
   onDelete: (id: string) => void;
   onBack: () => void;
   onGoToScaler: (r: Recipe) => void;
+  onViewTechSheet: (r: Recipe) => void;
 }
 
-export const RecipeDetail: React.FC<Props> = ({ recipe: initialRecipe, materials, settings, onSave, onDelete, onBack, onGoToScaler }) => {
+export const RecipeDetail: React.FC<Props> = ({ recipe: initialRecipe, materials, settings, currentUser, onSave, onDelete, onBack, onGoToScaler, onViewTechSheet }) => {
   const [recipe, setRecipe] = useState<Recipe>(JSON.parse(JSON.stringify(initialRecipe)));
   const [addingIngredient, setAddingIngredient] = useState<string>('');
   
+  const canEdit = canEditCosts(currentUser.rol);
   const stats = calculateRecipeStats(recipe, materials, settings);
 
   const availableMaterials = useMemo(() => {
@@ -27,7 +31,7 @@ export const RecipeDetail: React.FC<Props> = ({ recipe: initialRecipe, materials
   }, [materials]);
 
   const handleAddIngredient = () => {
-    if (!addingIngredient) return;
+    if (!canEdit || !addingIngredient) return;
     const newIng: Ingredient = {
       id: crypto.randomUUID(),
       receta_id: recipe.id,
@@ -43,6 +47,7 @@ export const RecipeDetail: React.FC<Props> = ({ recipe: initialRecipe, materials
   };
 
   const updateIngredientQty = (id: string, qty: number) => {
+    if (!canEdit) return;
     setRecipe(prev => ({
       ...prev,
       ingredientes: prev.ingredientes.map(i => i.id === id ? { ...i, cantidad_en_um_costos: qty } : i)
@@ -50,6 +55,7 @@ export const RecipeDetail: React.FC<Props> = ({ recipe: initialRecipe, materials
   };
 
   const removeIngredient = (id: string) => {
+    if (!canEdit) return;
     setRecipe(prev => ({
       ...prev,
       ingredientes: prev.ingredientes.filter(i => i.id !== id)
@@ -68,12 +74,21 @@ export const RecipeDetail: React.FC<Props> = ({ recipe: initialRecipe, materials
           <ArrowLeft size={16} className="mr-2" /> VOLVER
         </button>
         <div className="flex gap-3">
+            {canEdit && (
+                <button 
+                    onClick={() => onDelete(recipe.id)}
+                    className="flex items-center gap-2 px-3 py-2 border border-status-error/50 bg-bg-highlight text-status-error rounded hover:bg-status-error hover:text-white transition group"
+                    title="Eliminar Receta"
+                >
+                    <Trash2 size={18} />
+                </button>
+            )}
             <button 
-                onClick={() => onDelete(recipe.id)}
-                className="flex items-center gap-2 px-3 py-2 border border-status-error/50 bg-bg-highlight text-status-error rounded hover:bg-status-error hover:text-white transition group"
-                title="Eliminar Receta"
+                onClick={() => onViewTechSheet(recipe)}
+                className="flex items-center gap-2 px-4 py-2 bg-text-main text-bg-base font-bold rounded hover:bg-white transition shadow-[0_0_10px_rgba(255,255,255,0.2)]"
             >
-                <Trash2 size={18} />
+                <FileText size={18} />
+                <span className="font-mono text-xs hidden sm:inline tracking-wider">FICHA TÉCNICA</span>
             </button>
             <button 
                 onClick={() => onGoToScaler(recipe)}
@@ -82,13 +97,15 @@ export const RecipeDetail: React.FC<Props> = ({ recipe: initialRecipe, materials
                 <Calculator size={18} />
                 <span className="font-mono text-xs hidden sm:inline tracking-wider">ESCALAR RECETA</span>
             </button>
-            <button 
-                onClick={handleSave}
-                className="flex items-center gap-2 px-6 py-2 bg-brand-primary text-white rounded hover:bg-brand-primaryHover shadow-[0_0_15px_rgba(255,75,125,0.4)] transition"
-            >
-                <Save size={18} />
-                <span className="font-bold tracking-wide text-sm">GUARDAR</span>
-            </button>
+            {canEdit && (
+                <button 
+                    onClick={handleSave}
+                    className="flex items-center gap-2 px-6 py-2 bg-brand-primary text-white rounded hover:bg-brand-primaryHover shadow-[0_0_15px_rgba(255,75,125,0.4)] transition"
+                >
+                    <Save size={18} />
+                    <span className="font-bold tracking-wide text-sm">GUARDAR</span>
+                </button>
+            )}
         </div>
       </div>
 
@@ -96,11 +113,14 @@ export const RecipeDetail: React.FC<Props> = ({ recipe: initialRecipe, materials
         
         {/* LEFT COLUMN: Summary & Stats */}
         <div className="lg:col-span-4 space-y-6">
-            <div className="bg-bg-elevated border border-border-soft rounded p-6 shadow-lg">
+            <div className="bg-bg-elevated border border-border-soft rounded p-6 shadow-lg relative">
+                {!canEdit && <div className="absolute top-0 right-0 p-2 text-[10px] text-text-muted border border-text-muted rounded m-2">SOLO LECTURA</div>}
+                
                 <div className="mb-6">
                     <label className="block text-[10px] font-mono text-brand-secondary uppercase mb-1">Nombre del Pastón (Mix)</label>
                     <input 
-                        className="w-full bg-bg-base border border-border-intense rounded px-3 py-2 font-header font-bold text-white focus:border-brand-primary outline-none transition-colors text-lg"
+                        disabled={!canEdit}
+                        className="w-full bg-bg-base border border-border-intense rounded px-3 py-2 font-header font-bold text-white focus:border-brand-primary outline-none transition-colors text-lg disabled:opacity-70 disabled:border-transparent"
                         value={recipe.nombre_producto}
                         onChange={e => setRecipe({...recipe, nombre_producto: e.target.value})}
                     />
@@ -109,7 +129,8 @@ export const RecipeDetail: React.FC<Props> = ({ recipe: initialRecipe, materials
                 <div className="mb-6">
                     <label className="block text-[10px] font-mono text-text-secondary uppercase mb-1">Rubro General</label>
                     <select 
-                        className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-xs text-white outline-none font-mono"
+                        disabled={!canEdit}
+                        className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-xs text-white outline-none font-mono disabled:opacity-70"
                         value={recipe.rubro_producto}
                         onChange={e => setRecipe({...recipe, rubro_producto: e.target.value})}
                     >
@@ -156,7 +177,8 @@ export const RecipeDetail: React.FC<Props> = ({ recipe: initialRecipe, materials
                         <label className="block text-[10px] font-mono text-text-secondary uppercase mb-1">Min. Totales Lote</label>
                         <input 
                             type="number" 
-                            className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono"
+                            disabled={!canEdit}
+                            className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono disabled:opacity-50"
                             value={recipe.minutos_totales_paston_lote || 0}
                             onChange={e => setRecipe({...recipe, minutos_totales_paston_lote: parseFloat(e.target.value)})}
                         />
@@ -165,7 +187,8 @@ export const RecipeDetail: React.FC<Props> = ({ recipe: initialRecipe, materials
                         <label className="block text-[10px] font-mono text-text-secondary uppercase mb-1">Cant. Operarios</label>
                          <input 
                             type="number" 
-                            className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono"
+                            disabled={!canEdit}
+                            className="w-full bg-bg-base border border-border-intense rounded px-2 py-2 text-white outline-none font-mono disabled:opacity-50"
                             value={recipe.operarios_equivalentes_paston || 1}
                             onChange={e => setRecipe({...recipe, operarios_equivalentes_paston: parseFloat(e.target.value)})}
                         />
@@ -217,7 +240,8 @@ export const RecipeDetail: React.FC<Props> = ({ recipe: initialRecipe, materials
                                                 type="number" 
                                                 step="0.001"
                                                 min="0"
-                                                className="w-full text-right bg-transparent border border-transparent hover:border-border-intense focus:border-brand-secondary focus:bg-bg-base rounded px-2 py-1 outline-none font-mono font-bold text-brand-secondary transition-all"
+                                                disabled={!canEdit}
+                                                className="w-full text-right bg-transparent border border-transparent hover:border-border-intense focus:border-brand-secondary focus:bg-bg-base rounded px-2 py-1 outline-none font-mono font-bold text-brand-secondary transition-all disabled:opacity-70 disabled:hover:border-transparent"
                                                 value={ing.cantidad_en_um_costos}
                                                 onChange={(e) => updateIngredientQty(ing.id, parseFloat(e.target.value) || 0)}
                                             />
@@ -229,41 +253,45 @@ export const RecipeDetail: React.FC<Props> = ({ recipe: initialRecipe, materials
                                             {formatCurrency(cost)}
                                         </td>
                                         <td className="py-2 text-center">
-                                            <button 
-                                                onClick={() => removeIngredient(ing.id)}
-                                                className="text-text-muted hover:text-status-error transition-colors opacity-0 group-hover:opacity-100"
-                                            >
-                                                <Trash2 size={16} />
-                                            </button>
+                                            {canEdit && (
+                                                <button 
+                                                    onClick={() => removeIngredient(ing.id)}
+                                                    className="text-text-muted hover:text-status-error transition-colors opacity-0 group-hover:opacity-100"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            )}
                                         </td>
                                     </tr>
                                 );
                             })}
                             
                             {/* Add Row */}
-                            <tr className="bg-bg-highlight/30">
-                                <td className="py-3 pl-4 pr-4" colSpan={5}>
-                                    <div className="flex gap-2">
-                                        <select 
-                                            className="flex-1 text-xs bg-bg-base border border-border-intense rounded px-3 py-2 outline-none text-text-main font-mono focus:border-brand-primary"
-                                            value={addingIngredient}
-                                            onChange={(e) => setAddingIngredient(e.target.value)}
-                                        >
-                                            <option value="">// SELECCIONAR INSUMO...</option>
-                                            {availableMaterials.map(m => (
-                                                <option key={m.id} value={m.id}>{m.nombre_item}</option>
-                                            ))}
-                                        </select>
-                                        <button 
-                                            disabled={!addingIngredient}
-                                            onClick={handleAddIngredient}
-                                            className="bg-brand-primary text-white px-3 py-2 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-brand-primaryHover transition"
-                                        >
-                                            <Plus size={18} />
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
+                            {canEdit && (
+                                <tr className="bg-bg-highlight/30">
+                                    <td className="py-3 pl-4 pr-4" colSpan={5}>
+                                        <div className="flex gap-2">
+                                            <select 
+                                                className="flex-1 text-xs bg-bg-base border border-border-intense rounded px-3 py-2 outline-none text-text-main font-mono focus:border-brand-primary"
+                                                value={addingIngredient}
+                                                onChange={(e) => setAddingIngredient(e.target.value)}
+                                            >
+                                                <option value="">// SELECCIONAR INSUMO...</option>
+                                                {availableMaterials.map(m => (
+                                                    <option key={m.id} value={m.id}>{m.nombre_item}</option>
+                                                ))}
+                                            </select>
+                                            <button 
+                                                disabled={!addingIngredient}
+                                                onClick={handleAddIngredient}
+                                                className="bg-brand-primary text-white px-3 py-2 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-brand-primaryHover transition"
+                                            >
+                                                <Plus size={18} />
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            )}
                         </tbody>
                     </table>
                 </div>
