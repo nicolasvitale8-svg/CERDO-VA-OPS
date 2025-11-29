@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CERDO VA! - Sistema de Costos</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              header: ['Space Grotesk', 'sans-serif'],
+              mono: ['JetBrains Mono', 'monospace'],
+            },
+            colors: {
+              bg: {
+                base: '#05070B',
+                elevated: '#0C1017',
+                highlight: '#151B26',
+              },
+              border: {
+                soft: '#222938',
+                intense: '#343C4F',
+              },
+              text: {
+                main: '#F5F7FF',
+                secondary: '#A2ADC7',
+                muted: '#6B7387',
+                inverted: '#05070B',
+              },
+              brand: {
+                primary: '#FF4B7D', // Neon Pink
+                primaryHover: '#FF6A93',
+                secondary: '#38E0FF', // Cold Cyan
+                secondaryDim: 'rgba(56, 224, 255, 0.1)',
+              },
+              status: {
+                ok: '#22C55E',
+                warning: '#FACC15',
+                error: '#F97373',
+                info: '#38E0FF',
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      body {
+        background-color: #05070B;
+        color: #F5F7FF;
+      }
+      /* Custom Scrollbar for that tech feel */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #0C1017; 
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #343C4F; 
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #FF4B7D; 
+      }
+
+      @media print {
+        .no-print { display: none !important; }
+        .print-only { display: block !important; }
+        body { background: white !important; color: black !important; }
+        .print-break-inside-avoid { break-inside: avoid; }
+        /* Reset colors for print to save toner */
+        .text-slate-900, .text-slate-800 { color: black !important; }
+        .bg-white { background: white !important; }
+        .border-slate-200 { border-color: #ddd !important; }
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
+    "recharts": "https://aistudiocdn.com/recharts@^2.12.7"
+  }
+}
+</script>
+</head>
+  <body class="antialiased">
+    <div id="root"></div>
+  </body>
+</html>
