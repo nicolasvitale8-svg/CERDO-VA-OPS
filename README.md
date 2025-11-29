@@ -1,20 +1,15 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# CERDO VA! OPS - Sistema de Gestión
 
-# Run and deploy your AI Studio app
+Sistema de costos, recetas y producción industrial para planta de alimentos.
 
-This contains everything you need to run your app locally.
+## Stack Tecnológico
+- **Frontend:** React + TypeScript + Vite
+- **Estilos:** Tailwind CSS
+- **Persistencia:** LocalStorage (Versión 1.0) / Exportación Excel
 
-View your app in AI Studio: https://ai.studio/apps/drive/1m35eilcwdxru8VY7w6RgOCFfjcgBZMLy
+## Despliegue
+Este proyecto está optimizado para desplegarse en [Vercel](https://vercel.com/).
 
-## Run Locally
-
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+1. Subir a GitHub.
+2. Importar proyecto en Vercel.
+3. El comando de build `npm run build` se detectará automáticamente.
