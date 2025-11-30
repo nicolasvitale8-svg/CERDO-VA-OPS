@@ -5,10 +5,13 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   server: {
-    host: true // Esto permite el acceso desde la red WiFi
+    host: true 
   },
+  base: '/',
   build: {
     outDir: 'dist',
-    sourcemap: false
+    assetsDir: 'assets',
+    sourcemap: false,
+    emptyOutDir: true
   }
 });
