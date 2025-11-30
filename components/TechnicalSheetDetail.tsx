@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { TechnicalDataSheet, Recipe, RawMaterial, User } from '../types';
 import { canEditCosts } from '../services/authService';
@@ -18,6 +17,9 @@ export const TechnicalSheetDetail: React.FC<Props> = ({ sheet: initialSheet, rec
   const [showJsonModal, setShowJsonModal] = useState(false);
   const [jsonInput, setJsonInput] = useState('');
   const canEdit = canEditCosts(currentUser.rol);
+
+  // Calculate total yield since it's not a direct property of Recipe
+  const rindeTotal = recipe.ingredientes.reduce((acc, ing) => acc + ing.cantidad_en_um_costos, 0);
 
   const handleSave = () => {
     onSave(sheet);
@@ -174,7 +176,7 @@ export const TechnicalSheetDetail: React.FC<Props> = ({ sheet: initialSheet, rec
         <div className="mb-8">
             <div className="flex justify-between items-center mb-2">
                 <h2 className="text-lg font-bold uppercase border-l-4 border-black pl-3">1. Especificación del Lote</h2>
-                <div className="text-sm font-mono bg-gray-100 px-2 py-1 rounded">Base Lote: {recipe.rinde_kg} kg</div>
+                <div className="text-sm font-mono bg-gray-100 px-2 py-1 rounded">Base Lote: {rindeTotal.toFixed(3)} kg</div>
             </div>
             
             <table className="w-full text-sm text-left border-collapse border border-black mb-4">
@@ -190,7 +192,7 @@ export const TechnicalSheetDetail: React.FC<Props> = ({ sheet: initialSheet, rec
                 <tbody>
                     {recipe.ingredientes.map((ing, idx) => {
                          const mat = materials.find(m => m.id === ing.materia_prima_id);
-                         const pct = recipe.rinde_kg > 0 ? (ing.cantidad_en_um_costos / recipe.rinde_kg) * 100 : 0;
+                         const pct = rindeTotal > 0 ? (ing.cantidad_en_um_costos / rindeTotal) * 100 : 0;
                          return (
                              <tr key={ing.id}>
                                  <td className="border border-black p-2 text-center">{idx + 1}</td>

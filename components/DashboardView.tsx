@@ -28,9 +28,9 @@ export const DashboardView: React.FC<Props> = ({
   
   // 1. Prepare Data
   const dashboardData = useMemo(() => {
-    let filtered = products;
+    let filtered = products || [];
     if (filterRubro !== 'TODOS') {
-        filtered = products.filter(p => p.tipo_producto === filterRubro);
+        filtered = filtered.filter(p => p.tipo_producto === filterRubro);
     }
     // Only active products typically matter for dashboards
     filtered = filtered.filter(p => p.activo);
@@ -51,14 +51,14 @@ export const DashboardView: React.FC<Props> = ({
     const marginThreshold = 20; // 20%
 
     // Data Health
-    const recipesWithoutLabor = recipes.filter(r => !r.minutos_totales_paston_lote).length;
-    const materialsWithoutPrice = materials.filter(m => m.precio_unidad_compra <= 0).length;
-    const productsWithoutPkg = products.filter(p => !p.empaque_items || p.empaque_items.length === 0).length;
+    const recipesWithoutLabor = recipes?.filter(r => !r.minutos_totales_paston_lote).length || 0;
+    const materialsWithoutPrice = materials?.filter(m => m.precio_unidad_compra <= 0).length || 0;
+    const productsWithoutPkg = products?.filter(p => !p.empaque_items || p.empaque_items.length === 0).length || 0;
 
     filtered.forEach(p => {
-        const recipe = recipes.find(r => r.id === p.receta_id);
+        const recipe = recipes?.find(r => r.id === p.receta_id);
         if (recipe) {
-            const stats = calculateProductStats(p, recipe, materials, settings);
+            const stats = calculateProductStats(p, recipe, materials || [], settings);
             statsMap.set(p.id, stats);
 
             // Weighted Avg Cost / Kg
@@ -92,11 +92,11 @@ export const DashboardView: React.FC<Props> = ({
 
     // Chart Data: Margin by Category
     const marginByCat = PRODUCT_CATEGORIES.map(cat => {
-        const catProducts = products.filter(p => p.tipo_producto === cat && p.activo);
+        const catProducts = products?.filter(p => p.tipo_producto === cat && p.activo) || [];
         const catTotalMargin = catProducts.reduce((acc, p) => {
-            const r = recipes.find(rec => rec.id === p.receta_id);
+            const r = recipes?.find(rec => rec.id === p.receta_id);
             if (!r) return acc;
-            const s = calculateProductStats(p, r, materials, settings);
+            const s = calculateProductStats(p, r, materials || [], settings);
             return acc + s.margen_real_pct;
         }, 0);
         const avg = catProducts.length > 0 ? catTotalMargin / catProducts.length : 0;

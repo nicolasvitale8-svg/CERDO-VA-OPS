@@ -14,8 +14,11 @@ import { UsersView } from './components/UsersView';
 import { ExportToolsView } from './components/ExportToolsView';
 import { TechnicalSheetDetail } from './components/TechnicalSheetDetail';
 import { RawMaterial, Recipe, FinalProduct, ViewState, GlobalSettings, User, TechnicalDataSheet } from './types';
-import { INITIAL_MATERIALS, INITIAL_RECIPES, INITIAL_PRODUCTS, INITIAL_SETTINGS, INITIAL_USERS, INITIAL_TECHNICAL_SHEETS } from './constants';
+import { INITIAL_SETTINGS } from './constants';
 import { loginUser, canManageUsers, canEditCosts } from './services/authService';
+import * as dataService from './services/dataService';
+import { isSupabaseConfigured } from './services/supabaseClient';
+import { Loader2, AlertTriangle, Database } from 'lucide-react';
 
 function App() {
   // --- Auth State ---
@@ -26,49 +29,53 @@ function App() {
   const [loginError, setLoginError] = useState('');
 
   // --- Data State ---
+  const [isLoading, setIsLoading] = useState(true);
   const [view, setView] = useState<ViewState>('DASHBOARD');
   
-  const [settings, setSettings] = useState<GlobalSettings>(() => {
-    const saved = localStorage.getItem('cv_settings');
-    return saved ? JSON.parse(saved) : INITIAL_SETTINGS;
-  });
-
-  const [users, setUsers] = useState<User[]>(() => {
-      const saved = localStorage.getItem('cv_users');
-      return saved ? JSON.parse(saved) : INITIAL_USERS;
-  });
-
-  const [materials, setMaterials] = useState<RawMaterial[]>(() => {
-    const saved = localStorage.getItem('cv_materials');
-    return saved ? JSON.parse(saved) : INITIAL_MATERIALS;
-  });
-  
-  const [recipes, setRecipes] = useState<Recipe[]>(() => {
-    const saved = localStorage.getItem('cv_recipes');
-    return saved ? JSON.parse(saved) : INITIAL_RECIPES;
-  });
-
-  const [products, setProducts] = useState<FinalProduct[]>(() => {
-    const saved = localStorage.getItem('cv_products');
-    return saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
-  });
-
-  const [techSheets, setTechSheets] = useState<TechnicalDataSheet[]>(() => {
-    const saved = localStorage.getItem('cv_tech_sheets');
-    return saved ? JSON.parse(saved) : INITIAL_TECHNICAL_SHEETS;
-  });
+  const [settings, setSettings] = useState<GlobalSettings>(INITIAL_SETTINGS);
+  const [users, setUsers] = useState<User[]>([]);
+  const [materials, setMaterials] = useState<RawMaterial[]>([]);
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [products, setProducts] = useState<FinalProduct[]>([]);
+  const [techSheets, setTechSheets] = useState<TechnicalDataSheet[]>([]);
 
   const [activeRecipe, setActiveRecipe] = useState<Recipe | null>(null);
   const [activeProduct, setActiveProduct] = useState<FinalProduct | null>(null);
   const [activeSheet, setActiveSheet] = useState<TechnicalDataSheet | null>(null);
 
-  // Persistence Effects
-  useEffect(() => { localStorage.setItem('cv_settings', JSON.stringify(settings)); }, [settings]);
-  useEffect(() => { localStorage.setItem('cv_materials', JSON.stringify(materials)); }, [materials]);
-  useEffect(() => { localStorage.setItem('cv_recipes', JSON.stringify(recipes)); }, [recipes]);
-  useEffect(() => { localStorage.setItem('cv_products', JSON.stringify(products)); }, [products]);
-  useEffect(() => { localStorage.setItem('cv_users', JSON.stringify(users)); }, [users]);
-  useEffect(() => { localStorage.setItem('cv_tech_sheets', JSON.stringify(techSheets)); }, [techSheets]);
+  // --- Initial Load ---
+  const loadSystemData = async () => {
+      if (!isSupabaseConfigured()) {
+          setIsLoading(false);
+          return;
+      }
+
+      try {
+          setIsLoading(true);
+          const data = await dataService.loadInitialData();
+          setSettings(data.settings);
+          setMaterials(data.materials);
+          setRecipes(data.recipes);
+          setProducts(data.products);
+          setUsers(data.users);
+          setTechSheets(data.techSheets);
+      } catch (error) {
+          console.error("Error connecting to database:", error);
+          // Don't alert immediately on load, maybe just log
+      } finally {
+          setIsLoading(false);
+      }
+  };
+
+  useEffect(() => {
+      if (currentUser) {
+          loadSystemData();
+      } else {
+          setIsLoading(false);
+      }
+  }, [currentUser]);
+
+  // Session persistence
   useEffect(() => { 
       if (currentUser) localStorage.setItem('cv_session', JSON.stringify(currentUser));
       else localStorage.removeItem('cv_session');
@@ -77,105 +84,140 @@ function App() {
   // --- Auth Handlers ---
 
   const handleLogin = (email: string, pass: string) => {
-      const user = loginUser(users, email, pass);
-      if (user) {
-          setCurrentUser(user);
-          setLoginError('');
-          setView('DASHBOARD');
-      } else {
-          setLoginError('Credenciales inválidas o usuario inactivo.');
+      if (!isSupabaseConfigured()) {
+          // Fallback login for testing UI without DB
+          if (email === 'admin@test.com' && pass === 'admin') {
+              setCurrentUser({ id: 'local', email, nombre: 'Local Admin', rol: 'ADMIN', password_hash: '', activo: true });
+              return;
+          }
       }
+
+      dataService.loadInitialData().then(data => {
+          const user = loginUser(data.users, email, pass);
+          if (user) {
+              setCurrentUser(user);
+              setLoginError('');
+              // Now load the rest
+              setSettings(data.settings);
+              setMaterials(data.materials);
+              setRecipes(data.recipes);
+              setProducts(data.products);
+              setUsers(data.users);
+              setTechSheets(data.techSheets);
+              setView('DASHBOARD');
+          } else {
+              setLoginError('Credenciales inválidas.');
+          }
+      }).catch(() => setLoginError('Error de conexión o configuración.'));
   };
 
   const handleLogout = () => {
       setCurrentUser(null);
       setView('LOGIN');
+      setMaterials([]);
+      setRecipes([]);
+      setProducts([]);
   };
 
-  const handleSaveUser = (u: User) => {
-      setUsers(prev => {
-          const exists = prev.find(user => user.id === u.id);
-          if (exists) return prev.map(user => user.id === u.id ? u : user);
-          return [...prev, u];
-      });
+  const handleSaveUser = async (u: User) => {
+      try {
+          await dataService.saveUser(u);
+          setUsers(prev => {
+              const exists = prev.find(user => user.id === u.id);
+              if (exists) return prev.map(user => user.id === u.id ? u : user);
+              return [...prev, u];
+          });
+      } catch (e) { alert("Error al guardar usuario"); }
   };
 
   // --- Data Handlers ---
 
-  const handleRestoreBackup = (data: any) => {
-      if (data.materials) setMaterials(data.materials);
-      if (data.recipes) setRecipes(data.recipes);
-      if (data.products) setProducts(data.products);
-      if (data.settings) setSettings(data.settings);
-      if (data.users) setUsers(data.users);
-      if (data.techSheets) setTechSheets(data.techSheets);
-      
-      alert("Copia de seguridad restaurada correctamente.");
-      setView('DASHBOARD');
-  };
-
-  const handleSaveSettings = (s: GlobalSettings) => {
-    setSettings(s);
-  };
-
-  const handleSaveMaterial = (material: RawMaterial) => {
-    setMaterials(prev => {
-      const exists = prev.find(p => p.id === material.id);
-      if (exists) {
-        return prev.map(p => p.id === material.id ? material : p);
+  const handleRestoreBackup = async (data: any) => {
+      if (!isSupabaseConfigured()) {
+          alert("Error: No hay conexión a Supabase configurada.");
+          return;
       }
-      return [...prev, material];
-    });
+
+      if (window.confirm("Se subirán los datos del archivo a la Base de Datos en la Nube. Esto puede tardar unos segundos. ¿Continuar?")) {
+          setIsLoading(true);
+          try {
+              await dataService.migrateFromBackup(data);
+              await loadSystemData(); // Reload from DB
+              alert("Migración a la nube completada con éxito.");
+              setView('DASHBOARD');
+          } catch (e) {
+              console.error(e);
+              alert("Error durante la migración.");
+              setIsLoading(false);
+          }
+      }
   };
 
-  const handleDeleteMaterial = (id: string) => {
+  const handleSaveSettings = async (s: GlobalSettings) => {
+    try {
+        await dataService.saveSettings(s);
+        setSettings(s);
+    } catch (e) { alert("Error al guardar configuración"); }
+  };
+
+  const handleSaveMaterial = async (material: RawMaterial) => {
+    try {
+        await dataService.saveRawMaterial(material);
+        setMaterials(prev => {
+            const exists = prev.find(p => p.id === material.id);
+            if (exists) return prev.map(p => p.id === material.id ? material : p);
+            return [...prev, material];
+        });
+    } catch (e) { alert("Error al guardar insumo"); }
+  };
+
+  const handleDeleteMaterial = async (id: string) => {
       try {
-        console.log("Intentando eliminar insumo:", id);
-        
-        // 1. Check integrity in Recipes (using optional chaining for safety)
         const usedInRecipe = recipes.find(r => r.ingredientes?.some(i => i.materia_prima_id === id));
         if (usedInRecipe) {
-            alert(`NO SE PUEDE ELIMINAR:\nEste insumo se utiliza en la receta "${usedInRecipe.nombre_producto}".\n\nDebe quitarlo de la receta antes de eliminarlo.`);
+            alert(`NO SE PUEDE ELIMINAR:\nEste insumo se utiliza en la receta "${usedInRecipe.nombre_producto}".`);
             return;
         }
-
-        // 2. Check integrity in Products (Packaging) (using optional chaining)
         const usedInProduct = products.find(p => p.empaque_items?.some(i => i.materia_prima_id === id));
         if (usedInProduct) {
-            alert(`NO SE PUEDE ELIMINAR:\nEste insumo se utiliza como empaque en "${usedInProduct.nombre_producto_final}".\n\nDebe quitarlo del producto antes de eliminarlo.`);
+            alert(`NO SE PUEDE ELIMINAR:\nEste insumo se utiliza como empaque en "${usedInProduct.nombre_producto_final}".`);
             return;
         }
 
         if (window.confirm('¿Eliminar definitivamente este insumo?')) {
+            await dataService.deleteRawMaterial(id);
             setMaterials(prev => prev.filter(m => m.id !== id));
         }
       } catch (error) {
-          console.error("Error al eliminar material:", error);
-          alert("Ocurrió un error al intentar eliminar. Por favor recargue la página.");
+          console.error(error);
+          alert("Error al eliminar material.");
       }
   };
 
-  const handleSaveRecipe = (recipe: Recipe) => {
+  const handleSaveRecipe = async (recipe: Recipe) => {
     const updatedRecipe = { 
       ...recipe, 
       fecha_ultima_modificacion: new Date().toISOString().split('T')[0] 
     };
-
-    setRecipes(prev => {
-      const exists = prev.find(r => r.id === updatedRecipe.id);
-      if (exists) {
-        return prev.map(r => r.id === updatedRecipe.id ? updatedRecipe : r);
-      }
-      return [...prev, updatedRecipe];
-    });
-    setActiveRecipe(updatedRecipe); 
+    try {
+        await dataService.saveRecipe(updatedRecipe);
+        setRecipes(prev => {
+            const exists = prev.find(r => r.id === updatedRecipe.id);
+            if (exists) return prev.map(r => r.id === updatedRecipe.id ? updatedRecipe : r);
+            return [...prev, updatedRecipe];
+        });
+        setActiveRecipe(updatedRecipe);
+    } catch (e) { alert("Error al guardar receta"); }
   };
 
-  const handleDeleteRecipe = (id: string) => {
-      if (window.confirm('¿ESTÁ SEGURO? Eliminar esta receta base puede afectar productos que dependan de ella.\n\nEsta acción no se puede deshacer.')) {
-          setRecipes(prev => prev.filter(r => r.id !== id));
-          setActiveRecipe(null);
-          setView('RECIPES');
+  const handleDeleteRecipe = async (id: string) => {
+      if (window.confirm('¿ESTÁ SEGURO? Eliminar esta receta base puede afectar productos que dependan de ella.')) {
+          try {
+              await dataService.deleteRecipe(id);
+              setRecipes(prev => prev.filter(r => r.id !== id));
+              setActiveRecipe(null);
+              setView('RECIPES');
+          } catch (e) { alert("Error al eliminar receta"); }
       }
   };
 
@@ -197,26 +239,31 @@ function App() {
     setView('RECIPE_DETAIL');
   };
 
-  const handleSaveProduct = (product: FinalProduct) => {
+  const handleSaveProduct = async (product: FinalProduct) => {
       const updatedProduct = {
         ...product,
         fecha_ultima_modificacion: new Date().toISOString().split('T')[0]
       };
-      
-      setProducts(prev => {
-          const exists = prev.find(p => p.id === updatedProduct.id);
-          if (exists) return prev.map(p => p.id === updatedProduct.id ? updatedProduct : p);
-          return [...prev, updatedProduct];
-      });
-      setView('FINAL_PRODUCTS');
-      setActiveProduct(null);
+      try {
+          await dataService.saveProduct(updatedProduct);
+          setProducts(prev => {
+              const exists = prev.find(p => p.id === updatedProduct.id);
+              if (exists) return prev.map(p => p.id === updatedProduct.id ? updatedProduct : p);
+              return [...prev, updatedProduct];
+          });
+          setView('FINAL_PRODUCTS');
+          setActiveProduct(null);
+      } catch (e) { alert("Error al guardar producto"); }
   };
 
-  const handleDeleteProduct = (id: string) => {
-      if (window.confirm('¿ESTÁ SEGURO? Se eliminará este producto del catálogo.\n\nEsta acción no se puede deshacer.')) {
-          setProducts(prev => prev.filter(p => p.id !== id));
-          setActiveProduct(null);
-          setView('FINAL_PRODUCTS');
+  const handleDeleteProduct = async (id: string) => {
+      if (window.confirm('¿ESTÁ SEGURO? Se eliminará este producto del catálogo.')) {
+          try {
+              await dataService.deleteProduct(id);
+              setProducts(prev => prev.filter(p => p.id !== id));
+              setActiveProduct(null);
+              setView('FINAL_PRODUCTS');
+          } catch (e) { alert("Error al eliminar producto"); }
       }
   };
 
@@ -259,6 +306,7 @@ function App() {
           fecha_ultima_modificacion: new Date().toISOString().split('T')[0],
           usa_precio_real_custom: false
       };
+      // We don't save immediately, user edits first
       setActiveProduct(newProduct);
   };
 
@@ -291,7 +339,6 @@ function App() {
       if (existingSheet) {
           setActiveSheet(existingSheet);
       } else {
-          // Create new Sheet skeleton
           const newSheet: TechnicalDataSheet = {
               id: crypto.randomUUID(),
               receta_id: r.id,
@@ -314,16 +361,62 @@ function App() {
       setView('TECH_SHEET_DETAIL');
   };
 
-  const handleSaveTechSheet = (sheet: TechnicalDataSheet) => {
-      setTechSheets(prev => {
-          const exists = prev.find(s => s.id === sheet.id);
-          if (exists) return prev.map(s => s.id === sheet.id ? sheet : s);
-          return [...prev, sheet];
-      });
+  const handleSaveTechSheet = async (sheet: TechnicalDataSheet) => {
+      try {
+          await dataService.saveTechSheet(sheet);
+          setTechSheets(prev => {
+              const exists = prev.find(s => s.id === sheet.id);
+              if (exists) return prev.map(s => s.id === sheet.id ? sheet : s);
+              return [...prev, sheet];
+          });
+      } catch (e) { alert("Error al guardar ficha técnica"); }
   };
 
 
   // --- Render & Routing ---
+
+  // CRITICAL CONFIG CHECK
+  if (!isSupabaseConfigured()) {
+      return (
+          <div className="min-h-screen bg-bg-base flex flex-col items-center justify-center p-8 text-center">
+              <div className="bg-bg-elevated border border-status-error/50 p-8 rounded-lg max-w-lg shadow-2xl">
+                  <div className="flex justify-center mb-4 text-status-error">
+                      <AlertTriangle size={64} />
+                  </div>
+                  <h1 className="text-2xl font-header font-bold text-white mb-2">ERROR DE CONFIGURACIÓN</h1>
+                  <p className="text-text-secondary mb-6 font-mono text-sm">
+                      La aplicación no detecta las credenciales de Supabase.
+                  </p>
+                  
+                  <div className="bg-bg-base p-4 rounded border border-border-intense text-left mb-6 overflow-x-auto">
+                      <p className="text-xs text-text-muted font-mono mb-2">Verifique que el archivo <span className="text-white font-bold">.env</span> existe en la raíz y contiene:</p>
+                      <code className="text-xs font-mono text-brand-secondary block whitespace-pre">
+                          VITE_SUPABASE_URL=...<br/>
+                          VITE_SUPABASE_ANON_KEY=...
+                      </code>
+                  </div>
+
+                  <div className="text-xs text-text-muted">
+                      <p className="mb-2">Si ya creó el archivo:</p>
+                      <ol className="list-decimal list-inside space-y-1">
+                          <li>Detenga la terminal (Ctrl + C)</li>
+                          <li>Ejecute <span className="font-mono text-white bg-bg-highlight px-1 rounded">npm run dev</span> nuevamente</li>
+                      </ol>
+                  </div>
+              </div>
+          </div>
+      );
+  }
+
+  if (isLoading) {
+      return (
+          <div className="min-h-screen bg-bg-base flex flex-col items-center justify-center text-white">
+              <Loader2 size={48} className="animate-spin text-brand-primary mb-4" />
+              <h2 className="text-xl font-header font-bold tracking-widest">CONECTANDO A SUPABASE...</h2>
+              <p className="text-sm font-mono text-text-muted mt-2">Sincronizando datos en la nube</p>
+          </div>
+      );
+  }
 
   if (!currentUser) {
       return <LoginView onLogin={handleLogin} error={loginError} />;
@@ -331,7 +424,7 @@ function App() {
 
   // Protection Guard for Admin Route
   if (view === 'USERS' && !canManageUsers(currentUser.rol)) {
-      setView('DASHBOARD'); // Redirect fallback
+      setView('DASHBOARD');
   }
 
   // Protection Guard for Tools Route
