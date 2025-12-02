@@ -13,18 +13,25 @@ import { LoginView } from './components/LoginView';
 import { UsersView } from './components/UsersView';
 import { ExportToolsView } from './components/ExportToolsView';
 import { TechnicalSheetDetail } from './components/TechnicalSheetDetail';
+import { ManualView } from './components/ManualView';
 import { RawMaterial, Recipe, FinalProduct, ViewState, GlobalSettings, User, TechnicalDataSheet } from './types';
 import { INITIAL_SETTINGS } from './constants';
 import { loginUser, canManageUsers, canEditCosts } from './services/authService';
 import * as dataService from './services/dataService';
 import { isSupabaseConfigured } from './services/supabaseClient';
-import { Loader2, AlertTriangle, Database } from 'lucide-react';
+import { Loader2, AlertTriangle } from 'lucide-react';
 
 function App() {
   // --- Auth State ---
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
-      const saved = localStorage.getItem('cv_session');
-      return saved ? JSON.parse(saved) : null;
+      try {
+        const saved = localStorage.getItem('cv_session');
+        return saved ? JSON.parse(saved) : null;
+      } catch (e) {
+        console.error("Error reading session, clearing storage", e);
+        localStorage.removeItem('cv_session');
+        return null;
+      }
   });
   const [loginError, setLoginError] = useState('');
 
@@ -61,7 +68,6 @@ function App() {
           setTechSheets(data.techSheets);
       } catch (error) {
           console.error("Error connecting to database:", error);
-          // Don't alert immediately on load, maybe just log
       } finally {
           setIsLoading(false);
       }
@@ -85,13 +91,13 @@ function App() {
 
   const handleLogin = (email: string, pass: string) => {
       if (!isSupabaseConfigured()) {
-          // Fallback login for testing UI without DB
           if (email === 'admin@test.com' && pass === 'admin') {
               setCurrentUser({ id: 'local', email, nombre: 'Local Admin', rol: 'ADMIN', password_hash: '', activo: true });
               return;
           }
       }
 
+      setIsLoading(true);
       dataService.loadInitialData().then(data => {
           const user = loginUser(data.users, email, pass);
           if (user) {
@@ -108,7 +114,11 @@ function App() {
           } else {
               setLoginError('Credenciales inválidas.');
           }
-      }).catch(() => setLoginError('Error de conexión o configuración.'));
+          setIsLoading(false);
+      }).catch(() => {
+          setLoginError('Error de conexión o configuración.');
+          setIsLoading(false);
+      });
   };
 
   const handleLogout = () => {
@@ -306,7 +316,6 @@ function App() {
           fecha_ultima_modificacion: new Date().toISOString().split('T')[0],
           usa_precio_real_custom: false
       };
-      // We don't save immediately, user edits first
       setActiveProduct(newProduct);
   };
 
@@ -333,7 +342,6 @@ function App() {
       }
   };
 
-  // --- Tech Sheet Handlers ---
   const handleViewTechSheet = (r: Recipe) => {
       const existingSheet = techSheets.find(ts => ts.receta_id === r.id);
       if (existingSheet) {
@@ -372,10 +380,7 @@ function App() {
       } catch (e) { alert("Error al guardar ficha técnica"); }
   };
 
-
-  // --- Render & Routing ---
-
-  // CRITICAL CONFIG CHECK
+  // Render
   if (!isSupabaseConfigured()) {
       return (
           <div className="min-h-screen bg-bg-base flex flex-col items-center justify-center p-8 text-center">
@@ -387,22 +392,7 @@ function App() {
                   <p className="text-text-secondary mb-6 font-mono text-sm">
                       La aplicación no detecta las credenciales de Supabase.
                   </p>
-                  
-                  <div className="bg-bg-base p-4 rounded border border-border-intense text-left mb-6 overflow-x-auto">
-                      <p className="text-xs text-text-muted font-mono mb-2">Verifique que el archivo <span className="text-white font-bold">.env</span> existe en la raíz y contiene:</p>
-                      <code className="text-xs font-mono text-brand-secondary block whitespace-pre">
-                          VITE_SUPABASE_URL=...<br/>
-                          VITE_SUPABASE_ANON_KEY=...
-                      </code>
-                  </div>
-
-                  <div className="text-xs text-text-muted">
-                      <p className="mb-2">Si ya creó el archivo:</p>
-                      <ol className="list-decimal list-inside space-y-1">
-                          <li>Detenga la terminal (Ctrl + C)</li>
-                          <li>Ejecute <span className="font-mono text-white bg-bg-highlight px-1 rounded">npm run dev</span> nuevamente</li>
-                      </ol>
-                  </div>
+                  <p className="text-xs text-text-muted">Revise el archivo .env o supabaseClient.ts</p>
               </div>
           </div>
       );
@@ -412,8 +402,7 @@ function App() {
       return (
           <div className="min-h-screen bg-bg-base flex flex-col items-center justify-center text-white">
               <Loader2 size={48} className="animate-spin text-brand-primary mb-4" />
-              <h2 className="text-xl font-header font-bold tracking-widest">CONECTANDO A SUPABASE...</h2>
-              <p className="text-sm font-mono text-text-muted mt-2">Sincronizando datos en la nube</p>
+              <h2 className="text-xl font-header font-bold tracking-widest">CARGANDO SISTEMA...</h2>
           </div>
       );
   }
@@ -580,6 +569,9 @@ function App() {
         />
       );
       break;
+    case 'MANUAL':
+        content = <ManualView />;
+        break;
     default:
       content = <div className="text-center p-10">404 Not Found</div>;
   }

@@ -134,7 +134,7 @@ export interface TechnicalDataSheet {
 }
 
 // Helper types for View logic
-export type ViewState = 'LOGIN' | 'DASHBOARD' | 'RAW_MATERIALS' | 'RECIPES' | 'RECIPE_DETAIL' | 'SCALER' | 'FINAL_PRODUCTS' | 'FINAL_PRODUCT_DETAIL' | 'LABOR' | 'USERS' | 'TOOLS' | 'TECH_SHEET_DETAIL';
+export type ViewState = 'LOGIN' | 'DASHBOARD' | 'RAW_MATERIALS' | 'RECIPES' | 'RECIPE_DETAIL' | 'SCALER' | 'FINAL_PRODUCTS' | 'FINAL_PRODUCT_DETAIL' | 'LABOR' | 'USERS' | 'TOOLS' | 'TECH_SHEET_DETAIL' | 'MANUAL';
 
 export interface CalculatedRecipeStats {
   rinde_kg: number;

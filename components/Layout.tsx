@@ -2,7 +2,7 @@
 import React from 'react';
 import { ViewState, User } from '../types';
 import { canManageUsers, canEditCosts } from '../services/authService';
-import { LayoutDashboard, Scale, ChefHat, Package, Menu, ShoppingBag, Users, LogOut, Shield, Settings } from 'lucide-react';
+import { LayoutDashboard, Scale, ChefHat, Package, Menu, ShoppingBag, Users, LogOut, Shield, Settings, BookOpen } from 'lucide-react';
 
 interface Props {
   currentView: ViewState;
@@ -31,6 +31,9 @@ export const Layout: React.FC<Props> = ({ currentView, setView, children, curren
   if (canEditCosts(currentUser.rol)) {
       navItems.push({ id: 'TOOLS', label: 'HERRAMIENTAS', icon: Settings });
   }
+
+  // Manual for everyone
+  navItems.push({ id: 'MANUAL', label: 'MANUAL', icon: BookOpen });
 
   return (
     <div className="min-h-screen bg-bg-base text-text-main flex flex-col md:flex-row relative overflow-hidden">
@@ -61,7 +64,7 @@ export const Layout: React.FC<Props> = ({ currentView, setView, children, curren
           <h1 className="text-2xl font-header font-bold tracking-tight text-white flex items-center gap-2">
             <span className="text-brand-primary">■</span> CERDO VA!
           </h1>
-          <p className="text-xs font-mono text-text-muted mt-2 tracking-widest">SYSTEM V1.2 // ONLINE</p>
+          <p className="text-xs font-mono text-text-muted mt-2 tracking-widest">SYSTEM V1.3 // ONLINE</p>
         </div>
 
         {/* User Profile */}
@@ -80,7 +83,7 @@ export const Layout: React.FC<Props> = ({ currentView, setView, children, curren
             </div>
         </div>
         
-        <nav className="p-4 space-y-2 mt-2">
+        <nav className="p-4 space-y-2 mt-2 flex-1 overflow-y-auto">
           {navItems.map((item) => {
             const isActive = currentView === item.id || 
                              (item.id === 'RECIPES' && currentView === 'RECIPE_DETAIL') ||
@@ -99,35 +102,17 @@ export const Layout: React.FC<Props> = ({ currentView, setView, children, curren
                 }`}
               >
                 <item.icon size={18} className={isActive ? 'text-brand-secondary' : 'text-text-muted'} />
-                {item.label}
+                <span>{item.label}</span>
               </button>
             );
           })}
         </nav>
-        
-        <div className="p-6 mt-auto">
-             <div className="bg-bg-highlight border border-border-soft rounded p-4 text-xs">
-                <div className="flex items-center gap-2 mb-2">
-                    <div className="w-2 h-2 bg-status-ok rounded-full animate-pulse"></div>
-                    <span className="font-mono text-text-secondary">SERVER STATUS: OK</span>
-                </div>
-                <p className="text-text-muted">ID: PORK-LAB-01</p>
-             </div>
-        </div>
       </aside>
 
-      {/* Overlay for mobile */}
-      {mobileMenuOpen && (
-        <div 
-            className="fixed inset-0 bg-black/80 z-20 md:hidden backdrop-blur-sm"
-            onClick={() => setMobileMenuOpen(false)}
-        ></div>
-      )}
-
       {/* Main Content */}
-      <main className="flex-1 overflow-auto h-[calc(100vh-60px)] md:h-screen relative z-10">
-        <div className="p-4 md:p-8 max-w-7xl mx-auto">
-          {children}
+      <main className="flex-1 overflow-auto p-4 md:p-8 relative z-10">
+        <div className="max-w-7xl mx-auto">
+            {children}
         </div>
       </main>
     </div>
